@@ -1898,6 +1898,49 @@ document.addEventListener('DOMContentLoaded',function(){
 // ===== INIT =====
 const stored=localStorage.getItem('bt_user');
 if(stored){const u=JSON.parse(stored);if(u.tdee){S.user=u;loadUserData();setTimeout(()=>{initWeightInput();renderStreakBadge();},100);}}
+
+// ===== EXPOSE ALL FUNCTIONS TO WINDOW (needed for HTML onclick= attributes) =====
+window.setLang = setLang;
+window.showAuthPage = showAuthPage;
+window.doLogin = doLogin;
+window.doRegister = doRegister;
+window.doLogout = doLogout;
+window.nextStep = nextStep;
+window.prevStep = prevStep;
+window.finishQuestionnaire = finishQuestionnaire;
+window.selectGoal = selectGoal;
+window.selectActivity = selectActivity;
+window.selectGender = selectGender;
+window.showPage = showPage;
+window.openMealModal = openMealModal;
+window.closeMealModal = closeMealModal;
+window.searchFood = searchFood;
+window.selectFood = selectFood;
+window.addFood = addFood;
+window.removeFood = removeFood;
+window.setMealPortion = setMealPortion;
+window.openBarcodeModal = openBarcodeModal;
+window.closeBarcodeModal = closeBarcodeModal;
+window.lookupBarcode = lookupBarcode;
+window.addBarcodeFood = addBarcodeFood;
+window.openCameraScanner = openCameraScanner;
+window.stopCameraScan = stopCameraScan;
+window.analyzePhoto = analyzePhoto;
+window.addPhotoFoods = addPhotoFoods;
+window.selectAct = selectAct;
+window.calcActivity = calcActivity;
+window.saveActivity = saveActivity;
+window.filterActivities = filterActivities;
+window.logWeight = logWeight;
+window.setCalPeriod = setCalPeriod;
+window.setWeightPeriod = setWeightPeriod;
+window.renderLogbook = renderLogbook;
+window.showNotif = showNotif;
+window.updateDashboard = updateDashboard;
+window.renderMeals = renderMeals;
+window.saveDayLog = saveDayLog;
+window.spinChange = typeof spinChange !== 'undefined' ? spinChange : null;
+
 </script>
 </body>
 </html>
