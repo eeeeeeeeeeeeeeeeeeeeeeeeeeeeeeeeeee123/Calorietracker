@@ -1,0 +1,1903 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BaranTrack</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- Firebase -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged }
+  from "https://www.gstatic.com/firebasejs/12.14.0/firebase-auth.js";
+import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot }
+  from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
+
+// ===== FIREBASE CONFIG — fill these in after creating your project =====
+const firebaseConfig = {
+  apiKey:            "AIzaSyAKaQLM7X6mXgoWuvmWNNFJZYj079SF86s",
+  authDomain:        "baran-afval-site.firebaseapp.com",
+  projectId:         "baran-afval-site",
+  storageBucket:     "baran-afval-site.firebasestorage.app",
+  messagingSenderId: "973259864350",
+  appId:             "1:973259864350:web:de5d2035bc64778742310f",
+  measurementId:     "G-14M5X8R38X"
+};
+const fbApp  = initializeApp(firebaseConfig);
+const fbAuth = getAuth(fbApp);
+const fbDb   = getFirestore(fbApp);
+
+// Make Firebase available to main script
+window._fb = { fbAuth, fbDb, createUserWithEmailAndPassword, signInWithEmailAndPassword,
+               signOut, onAuthStateChanged, doc, setDoc, getDoc, updateDoc, onSnapshot };
+
+// Auth state observer — called when Firebase initialises
+onAuthStateChanged(fbAuth, async (user) => {
+  if (user) {
+    window._fbUser = user;
+    // Load data from Firestore
+    const snap = await getDoc(doc(fbDb, 'users', user.uid));
+    if (snap.exists()) {
+      const d = snap.data();
+      if (d.user)  window._S && (window._S.user = d.user);
+      if (d.data)  window._fbLoadData && window._fbLoadData(d.data);
+    }
+    window._fbReady && window._fbReady(user);
+  } else {
+    window._fbUser = null;
+    window._fbSignedOut && window._fbSignedOut();
+  }
+});
+</script>
+<!-- ZXing barcode scanner -->
+<script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
+<style>
+:root{--green:#22c55e;--green-dark:#16a34a;--green-light:#86efac;--green-xlight:#dcfce7;--gray-50:#f9fafb;--gray-100:#f3f4f6;--gray-200:#e5e7eb;--gray-400:#9ca3af;--gray-600:#4b5563;--gray-800:#1f2937;--blue:#3b82f6;--orange:#f97316;--red:#ef4444;--purple:#a855f7;--radius:12px;--shadow:0 4px 24px rgba(0,0,0,0.08);--shadow-lg:0 8px 40px rgba(0,0,0,0.12);}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray-800);min-height:100vh;}
+
+/* AUTH */
+.auth-wrapper{min-height:100vh;background:linear-gradient(135deg,#16a34a 0%,#22c55e 50%,#4ade80 100%);display:flex;align-items:center;justify-content:center;padding:20px;}
+.auth-card{background:white;border-radius:20px;padding:40px 36px;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,0.15);}
+.auth-logo{text-align:center;margin-bottom:8px;}
+.auth-logo .logo-icon{font-size:40px;display:block;}
+.auth-logo .logo-text{font-family:'Nunito',sans-serif;font-size:32px;font-weight:900;color:var(--gray-800);}
+.auth-logo .logo-text span{color:var(--green);}
+.auth-subtitle{text-align:center;color:var(--gray-600);font-size:14px;margin-bottom:28px;}
+.form-label{display:block;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-800);margin-bottom:6px;}
+.form-input{width:100%;padding:14px 16px;border:2px solid var(--gray-200);border-radius:var(--radius);font-size:15px;font-family:'Poppins',sans-serif;outline:none;transition:border-color .2s;margin-bottom:16px;color:var(--gray-800);}
+.form-input:focus{border-color:var(--green);}
+.btn-primary{width:100%;padding:15px;background:var(--green);color:white;border:none;border-radius:var(--radius);font-size:16px;font-weight:700;font-family:'Poppins',sans-serif;cursor:pointer;transition:background .2s,transform .1s;margin-bottom:16px;}
+.btn-primary:hover{background:var(--green-dark);transform:translateY(-1px);}
+.auth-link{text-align:center;font-size:14px;color:var(--gray-600);}
+.auth-link a{color:var(--green-dark);font-weight:700;text-decoration:none;}
+
+/* LANG */
+.lang-switcher{position:fixed;top:16px;right:16px;display:flex;gap:6px;z-index:1000;}
+.lang-btn{padding:6px 12px;border-radius:20px;border:2px solid rgba(255,255,255,.6);background:rgba(255,255,255,.2);color:white;font-size:12px;font-weight:700;cursor:pointer;font-family:'Poppins',sans-serif;transition:all .2s;}
+.lang-btn.active,.lang-btn:hover{background:white;color:var(--green-dark);border-color:white;}
+.lang-btn-app{padding:6px 12px;border-radius:20px;border:2px solid var(--gray-200);background:white;color:var(--gray-600);font-size:12px;font-weight:700;cursor:pointer;font-family:'Poppins',sans-serif;transition:all .2s;}
+.lang-btn-app.active,.lang-btn-app:hover{background:var(--green);color:white;border-color:var(--green);}
+
+/* CONFETTI WELCOME */
+#welcomeScreen{position:fixed;inset:0;background:linear-gradient(135deg,#16a34a,#22c55e);display:none;align-items:center;justify-content:center;z-index:9999;flex-direction:column;overflow:hidden;}
+#welcomeScreen.show{display:flex;}
+.welcome-content{text-align:center;color:white;z-index:2;animation:welcomePop .6s cubic-bezier(.34,1.56,.64,1) both;}
+@keyframes welcomePop{from{opacity:0;transform:scale(.5) translateY(40px);}to{opacity:1;transform:scale(1) translateY(0);}}
+.welcome-emoji{font-size:80px;display:block;margin-bottom:16px;animation:bounce 1s ease infinite;}
+@keyframes bounce{0%,100%{transform:translateY(0);}50%{transform:translateY(-12px);}}
+.welcome-title{font-family:'Nunito',sans-serif;font-size:36px;font-weight:900;margin-bottom:8px;}
+.welcome-sub{font-size:18px;opacity:.9;margin-bottom:32px;}
+.welcome-btn{padding:16px 40px;background:white;color:var(--green-dark);border:none;border-radius:50px;font-size:18px;font-weight:800;cursor:pointer;font-family:'Poppins',sans-serif;transition:transform .2s;box-shadow:0 8px 32px rgba(0,0,0,.15);}
+.welcome-btn:hover{transform:scale(1.05);}
+.confetti-piece{position:absolute;width:10px;height:10px;border-radius:2px;animation:confettiFall linear forwards;}
+@keyframes confettiFall{0%{transform:translateY(-20px) rotate(0deg);opacity:1;}100%{transform:translateY(110vh) rotate(720deg);opacity:0;}}
+
+/* QUESTIONNAIRE */
+.quest-step{display:none;}
+.quest-step.active{display:block;}
+.step-indicator{display:flex;gap:8px;justify-content:center;margin-bottom:28px;}
+.step-dot{width:10px;height:10px;border-radius:50%;background:var(--gray-200);transition:background .3s;}
+.step-dot.active{background:var(--green);}
+.step-dot.done{background:var(--green-light);}
+.quest-title{font-family:'Nunito',sans-serif;font-size:22px;font-weight:800;text-align:center;margin-bottom:6px;}
+.quest-sub{text-align:center;color:var(--gray-400);font-size:13px;margin-bottom:24px;}
+.goal-options{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:20px;}
+.goal-option{border:2px solid var(--gray-200);border-radius:var(--radius);padding:14px 8px;text-align:center;cursor:pointer;transition:all .2s;font-size:13px;font-weight:600;}
+.goal-option:hover,.goal-option.selected{border-color:var(--green);background:var(--green-xlight);color:var(--green-dark);}
+.goal-option .goal-icon{font-size:24px;display:block;margin-bottom:4px;}
+
+/* NAVBAR */
+.navbar{background:white;border-bottom:2px solid var(--gray-100);padding:0 24px;display:flex;align-items:center;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.06);height:64px;}
+.nav-logo{font-family:'Nunito',sans-serif;font-size:22px;font-weight:900;color:var(--gray-800);text-decoration:none;margin-right:32px;flex-shrink:0;cursor:pointer;}
+.nav-logo span{color:var(--green);}
+.nav-links{display:flex;gap:4px;flex:1;}
+.nav-link{padding:8px 14px;border-radius:8px;font-size:14px;font-weight:600;color:var(--gray-600);cursor:pointer;transition:all .2s;border:none;background:none;font-family:'Poppins',sans-serif;display:flex;align-items:center;gap:6px;}
+.nav-link:hover{background:var(--gray-100);color:var(--gray-800);}
+.nav-link.active{background:var(--green-xlight);color:var(--green-dark);}
+.nav-right{display:flex;align-items:center;gap:10px;margin-left:auto;}
+.avatar{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--green),var(--green-dark));color:white;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;cursor:pointer;}
+
+/* PAGES */
+.page{display:none;padding:28px 24px;max-width:1100px;margin:0 auto;}
+.page.active{display:block;}
+.page-title{font-family:'Nunito',sans-serif;font-size:26px;font-weight:900;margin-bottom:6px;}
+.page-sub{color:var(--gray-400);font-size:14px;margin-bottom:28px;}
+
+/* PROFILE */
+.profile-hero{background:linear-gradient(135deg,var(--green-dark),var(--green));border-radius:20px;padding:32px;color:white;margin-bottom:24px;position:relative;overflow:hidden;}
+.profile-hero::after{content:'🏃';position:absolute;right:24px;bottom:-10px;font-size:80px;opacity:.15;}
+.profile-name{font-family:'Nunito',sans-serif;font-size:28px;font-weight:900;margin-bottom:4px;}
+.profile-goal-badge{display:inline-block;background:rgba(255,255,255,.2);padding:4px 12px;border-radius:20px;font-size:13px;font-weight:600;margin-bottom:20px;}
+.profile-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;}
+.profile-stat{background:rgba(255,255,255,.15);border-radius:12px;padding:14px;text-align:center;}
+.profile-stat-val{font-size:22px;font-weight:800;font-family:'Nunito',sans-serif;}
+.profile-stat-lbl{font-size:11px;opacity:.8;margin-top:2px;}
+.cards-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;}
+.card{background:white;border-radius:var(--radius);padding:22px;box-shadow:var(--shadow);}
+.card-title{font-weight:700;font-size:15px;margin-bottom:16px;display:flex;align-items:center;gap:8px;}
+.weight-labels{display:flex;justify-content:space-between;font-size:13px;color:var(--gray-600);margin-bottom:6px;}
+.weight-bar-bg{height:12px;background:var(--gray-100);border-radius:99px;overflow:hidden;}
+.weight-bar-fill{height:100%;background:linear-gradient(90deg,var(--green),var(--green-dark));border-radius:99px;transition:width .8s ease;}
+.weight-input-row{display:flex;gap:10px;margin-top:12px;}
+.weight-input-row input{flex:1;padding:10px 12px;border:2px solid var(--gray-200);border-radius:8px;font-size:14px;font-family:'Poppins',sans-serif;outline:none;}
+.weight-input-row input:focus{border-color:var(--green);}
+.btn-sm{padding:10px 16px;background:var(--green);color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif;transition:background .2s;}
+.btn-sm:hover{background:var(--green-dark);}
+.nav-cards{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.nav-card{border-radius:var(--radius);padding:24px;color:white;cursor:pointer;transition:transform .2s,box-shadow .2s;}
+.nav-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-lg);}
+.nav-card.green{background:linear-gradient(135deg,#22c55e,#16a34a);}
+.nav-card.blue{background:linear-gradient(135deg,#3b82f6,#2563eb);}
+.nav-card-icon{font-size:32px;margin-bottom:10px;}
+.nav-card-title{font-family:'Nunito',sans-serif;font-size:18px;font-weight:800;margin-bottom:4px;}
+.nav-card-sub{font-size:13px;opacity:.85;}
+
+/* FOOD */
+.meal-sections{display:grid;gap:16px;}
+.meal-section{background:white;border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;}
+.meal-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:2px solid var(--gray-100);}
+.meal-header-left{display:flex;align-items:center;gap:10px;}
+.meal-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;}
+.meal-title{font-weight:700;font-size:15px;}
+.meal-cals{font-size:13px;color:var(--gray-400);font-weight:600;}
+.meal-items{padding:12px 20px;min-height:48px;}
+.food-item{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--gray-100);font-size:14px;}
+.food-item:last-child{border-bottom:none;}
+.food-item-name{font-weight:600;}
+.food-item-right{display:flex;align-items:center;gap:12px;color:var(--gray-400);}
+.food-item-cal{font-weight:700;color:var(--green-dark);}
+.food-item-del{cursor:pointer;color:var(--gray-400);font-size:16px;transition:color .2s;border:none;background:none;padding:0;}
+.food-item-del:hover{color:var(--red);}
+.meal-add-btn{display:flex;align-items:center;gap:8px;padding:10px 20px;color:var(--green-dark);font-size:13px;font-weight:600;cursor:pointer;border:none;background:none;font-family:'Poppins',sans-serif;transition:color .2s;width:100%;border-top:2px solid var(--gray-100);}
+.meal-add-btn:hover{color:var(--green);}
+.scan-bar{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;}
+.scan-btn{display:flex;align-items:center;gap:8px;padding:12px 18px;border-radius:var(--radius);border:2px solid var(--gray-200);background:white;font-size:13px;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif;transition:all .2s;color:var(--gray-700);}
+.scan-btn:hover{border-color:var(--green);color:var(--green-dark);background:var(--green-xlight);}
+.daily-summary{background:white;border-radius:var(--radius);padding:20px;margin-bottom:20px;box-shadow:var(--shadow);display:flex;align-items:center;gap:20px;}
+.cal-ring{position:relative;width:80px;height:80px;flex-shrink:0;}
+.cal-ring svg{transform:rotate(-90deg);}
+.cal-ring-text{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;}
+.cal-ring-num{font-family:'Nunito',sans-serif;font-weight:900;font-size:16px;color:var(--green-dark);line-height:1;}
+.cal-ring-lbl{font-size:9px;color:var(--gray-400);font-weight:600;}
+.cal-summary-right{flex:1;}
+.cal-summary-title{font-weight:700;font-size:15px;margin-bottom:10px;}
+.macro-bars{display:flex;flex-direction:column;gap:6px;}
+.macro-bar-row{display:flex;align-items:center;gap:10px;font-size:12px;}
+.macro-bar-lbl{width:60px;color:var(--gray-600);font-weight:600;}
+.macro-bar-bg{flex:1;height:8px;background:var(--gray-100);border-radius:99px;overflow:hidden;}
+.macro-bar-fill{height:100%;border-radius:99px;}
+.macro-bar-val{width:40px;text-align:right;font-weight:700;color:var(--gray-700);}
+
+/* MODALS */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:500;display:none;align-items:center;justify-content:center;padding:20px;}
+.modal-overlay.open{display:flex;}
+.modal{background:white;border-radius:20px;width:100%;max-width:540px;max-height:85vh;overflow-y:auto;padding:28px;box-shadow:0 20px 60px rgba(0,0,0,.2);}
+.modal-title{font-family:'Nunito',sans-serif;font-size:20px;font-weight:800;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;}
+.modal-close{cursor:pointer;font-size:20px;color:var(--gray-400);border:none;background:none;line-height:1;}
+.search-input-wrap{position:relative;margin-bottom:12px;}
+.search-input{width:100%;padding:13px 16px 13px 44px;border:2px solid var(--gray-200);border-radius:var(--radius);font-size:15px;font-family:'Poppins',sans-serif;outline:none;transition:border-color .2s;}
+.search-input:focus{border-color:var(--green);}
+.search-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:18px;color:var(--gray-400);}
+.search-results{display:flex;flex-direction:column;gap:8px;max-height:280px;overflow-y:auto;}
+.search-result-item{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border:2px solid var(--gray-100);border-radius:10px;cursor:pointer;transition:all .15s;}
+.search-result-item:hover{border-color:var(--green);background:var(--green-xlight);}
+.result-name{font-weight:600;font-size:14px;}
+.result-details{font-size:12px;color:var(--gray-400);margin-top:2px;}
+.result-cal{font-weight:800;font-size:15px;color:var(--green-dark);font-family:'Nunito',sans-serif;white-space:nowrap;margin-left:10px;}
+.portion-select{margin-top:12px;display:none;}
+.portion-select.visible{display:block;}
+.portion-row{display:flex;gap:10px;align-items:center;padding:12px 14px;background:var(--green-xlight);border-radius:10px;margin-bottom:10px;}
+.portion-row input{width:80px;padding:8px 10px;border:2px solid var(--green-light);border-radius:8px;font-size:14px;font-family:'Poppins',sans-serif;outline:none;text-align:center;}
+.portion-label{font-size:13px;font-weight:600;flex:1;}
+.portion-cal-preview{font-weight:800;color:var(--green-dark);font-size:15px;}
+
+/* MANUAL ADD */
+.manual-add-section{border-top:2px solid var(--gray-100);margin-top:16px;padding-top:16px;}
+.manual-add-title{font-size:13px;font-weight:700;color:var(--gray-600);margin-bottom:12px;display:flex;align-items:center;gap:6px;}
+.manual-inputs{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:8px;margin-bottom:10px;}
+.manual-inputs input{padding:9px 10px;border:2px solid var(--gray-200);border-radius:8px;font-size:13px;font-family:'Poppins',sans-serif;outline:none;}
+.manual-inputs input:focus{border-color:var(--green);}
+.manual-inputs input::placeholder{font-size:11px;color:var(--gray-400);}
+
+/* ACTIVITIES */
+.activity-search-wrap{background:white;border-radius:var(--radius);padding:24px;box-shadow:var(--shadow);margin-bottom:20px;}
+.activity-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:16px;max-height:340px;overflow-y:auto;}
+.activity-card{border:2px solid var(--gray-100);border-radius:var(--radius);padding:12px;cursor:pointer;transition:all .2s;text-align:center;}
+.activity-card:hover{border-color:var(--blue);background:#eff6ff;}
+.activity-card.selected{border-color:var(--blue);background:#eff6ff;}
+.activity-card-icon{font-size:26px;margin-bottom:4px;}
+.activity-card-name{font-weight:700;font-size:12px;line-height:1.2;}
+.activity-card-met{font-size:11px;color:var(--gray-400);margin-top:2px;}
+.activity-calc{background:white;border-radius:var(--radius);padding:24px;box-shadow:var(--shadow);margin-bottom:20px;}
+.activity-inputs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin:16px 0;}
+.input-group label{display:block;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-600);margin-bottom:6px;}
+.input-group input,.input-group select{width:100%;padding:11px 14px;border:2px solid var(--gray-200);border-radius:8px;font-size:14px;font-family:'Poppins',sans-serif;outline:none;transition:border-color .2s;}
+.input-group input:focus,.input-group select:focus{border-color:var(--green);}
+.cal-result-box{background:linear-gradient(135deg,var(--green-xlight),white);border:2px solid var(--green-light);border-radius:12px;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;}
+.cal-result-num{font-family:'Nunito',sans-serif;font-size:36px;font-weight:900;color:var(--green-dark);}
+.logged-activities{background:white;border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);}
+.log-item{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--gray-100);}
+.log-item:last-child{border-bottom:none;}
+.log-item-left{display:flex;align-items:center;gap:12px;}
+.log-item-icon{font-size:24px;}
+.log-item-name{font-weight:600;font-size:14px;}
+.log-item-detail{font-size:12px;color:var(--gray-400);}
+.log-item-cal{font-weight:800;color:var(--blue);font-family:'Nunito',sans-serif;font-size:16px;}
+
+/* MANUAL ACTIVITY */
+.manual-activity-section{background:white;border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);margin-bottom:20px;}
+
+/* LOGBOOK */
+.logbook-tabs{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;}
+.tab-btn{padding:8px 18px;border-radius:20px;border:2px solid var(--gray-200);background:white;font-size:13px;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif;transition:all .2s;color:var(--gray-600);}
+.tab-btn.active{background:var(--green);border-color:var(--green);color:white;}
+.tab-btn:hover:not(.active){border-color:var(--green);color:var(--green-dark);}
+.chart-card{background:white;border-radius:var(--radius);padding:24px;box-shadow:var(--shadow);margin-bottom:20px;}
+.chart-title{font-weight:700;font-size:16px;margin-bottom:4px;}
+.chart-sub{font-size:13px;color:var(--gray-400);margin-bottom:20px;}
+.bar-chart{display:flex;align-items:flex-end;gap:6px;height:160px;padding-bottom:28px;position:relative;}
+.bar-chart::before{content:'';position:absolute;bottom:28px;left:0;right:0;border-bottom:2px dashed var(--gray-100);}
+.bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;height:100%;justify-content:flex-end;}
+.bar{width:100%;background:linear-gradient(180deg,var(--green),var(--green-dark));border-radius:6px 6px 0 0;transition:height .6s ease;min-height:4px;cursor:pointer;position:relative;}
+.bar:hover{opacity:.8;}
+.bar-tooltip{position:absolute;top:-32px;left:50%;transform:translateX(-50%);background:var(--gray-800);color:white;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:700;white-space:nowrap;display:none;}
+.bar:hover .bar-tooltip{display:block;}
+.bar-label{font-size:10px;color:var(--gray-400);margin-top:6px;font-weight:600;}
+.stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px;}
+.stat-card{background:white;border-radius:var(--radius);padding:18px;box-shadow:var(--shadow);text-align:center;}
+.stat-card-num{font-family:'Nunito',sans-serif;font-size:28px;font-weight:900;color:var(--green-dark);}
+.stat-card-lbl{font-size:12px;color:var(--gray-400);font-weight:600;margin-top:2px;}
+.macro-pie-wrap{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:center;}
+.macro-legend{display:flex;flex-direction:column;gap:12px;}
+.macro-legend-item{display:flex;align-items:center;gap:10px;font-size:14px;}
+.macro-dot{width:14px;height:14px;border-radius:4px;flex-shrink:0;}
+.macro-legend-name{flex:1;font-weight:600;}
+.macro-legend-val{font-weight:800;font-family:'Nunito',sans-serif;font-size:16px;}
+.avg-badge{display:inline-flex;align-items:center;gap:6px;background:var(--green-xlight);color:var(--green-dark);padding:8px 14px;border-radius:8px;font-weight:700;font-size:14px;margin-bottom:16px;}
+
+/* BARCODE */
+.barcode-scanner-sim{border:3px dashed var(--gray-200);border-radius:12px;padding:32px;text-align:center;margin-bottom:16px;color:var(--gray-400);}
+.scan-anim{font-size:48px;animation:pulse 1.5s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
+
+/* PHOTO */
+.photo-drop{border:3px dashed var(--gray-200);border-radius:12px;padding:40px 20px;text-align:center;cursor:pointer;transition:border-color .2s;margin-bottom:16px;}
+.photo-drop:hover{border-color:var(--green);}
+#photoFileInput{display:none;}
+.ai-analyzing{text-align:center;padding:20px;color:var(--gray-600);font-size:14px;display:none;}
+
+/* NOTIF */
+.notif{position:fixed;bottom:24px;right:24px;background:var(--gray-800);color:white;padding:12px 20px;border-radius:12px;font-size:14px;font-weight:600;z-index:9999;transform:translateY(80px);opacity:0;transition:all .3s;display:flex;align-items:center;gap:8px;}
+.notif.show{transform:translateY(0);opacity:1;}
+
+/* SPINNER */
+.spinner{display:inline-block;width:18px;height:18px;border:3px solid var(--gray-200);border-top-color:var(--green);border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+.empty-state{text-align:center;padding:24px;color:var(--gray-400);font-size:14px;}
+.empty-state .empty-icon{font-size:32px;margin-bottom:8px;}
+
+
+/* NUMBER INPUTS with native arrows */
+.num-input{width:100%;padding:12px 14px;border:2px solid var(--gray-200);border-radius:var(--radius);font-size:15px;font-family:'Poppins',sans-serif;outline:none;transition:border-color .2s;margin-bottom:16px;color:var(--gray-800);background:white;font-weight:600;}
+.num-input:focus{border-color:var(--green);}
+.num-input::-webkit-inner-spin-button{opacity:1;height:28px;cursor:pointer;}
+.num-input::-webkit-outer-spin-button{opacity:1;}
+
+/* STREAK */
+.streak-badge{display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,#f97316,#ef4444);color:white;padding:8px 16px;border-radius:12px;font-weight:800;font-size:16px;font-family:'Nunito',sans-serif;box-shadow:0 4px 12px rgba(249,115,22,.3);}
+.streak-sub{font-size:11px;font-weight:600;opacity:.85;display:block;line-height:1;}
+
+/* WEIGHT Y-AXIS */
+.weight-chart-wrap{display:flex;gap:0;align-items:stretch;}
+.weight-yaxis{display:flex;flex-direction:column;justify-content:space-between;padding:10px 6px 22px 0;text-align:right;font-size:10px;color:var(--gray-400);font-weight:600;min-width:34px;flex-shrink:0;}
+.weight-chart-inner{flex:1;position:relative;min-width:0;}
+
+/* WEIGHT PERIOD BUTTONS */
+.weight-period-row{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;}
+
+@media(max-width:768px){
+  .profile-stats{grid-template-columns:repeat(2,1fr);}
+  .cards-row{grid-template-columns:1fr;}
+  .stats-grid{grid-template-columns:repeat(2,1fr);}
+  .nav-link{padding:8px 8px;font-size:12px;}
+  .activity-inputs{grid-template-columns:1fr 1fr;}
+  .manual-inputs{grid-template-columns:1fr 1fr;}
+  .macro-pie-wrap{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+
+<!-- LANG SWITCHER AUTH -->
+<div class="lang-switcher" id="authLangSwitcher">
+  <button class="lang-btn active" onclick="setLang('nl',this)">NL</button>
+  <button class="lang-btn" onclick="setLang('en',this)">EN</button>
+</div>
+
+<!-- WELCOME CONFETTI SCREEN -->
+<div id="welcomeScreen">
+  <canvas id="confettiCanvas" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;"></canvas>
+  <div class="welcome-content">
+    <span class="welcome-emoji">🎉</span>
+    <div class="welcome-title" id="welcomeName">Welkom, Baran!</div>
+    <div class="welcome-sub" id="welcomeSub">Je bent klaar om te beginnen met BaranTrack</div>
+    <button class="welcome-btn" onclick="hideWelcome()" data-nl="Laten we beginnen! 🚀" data-en="Let's get started! 🚀">Laten we beginnen! 🚀</button>
+  </div>
+</div>
+
+<!-- LOGIN -->
+<div class="auth-wrapper" id="loginPage">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <span class="logo-icon">⚡</span>
+      <div class="logo-text">Baran<span>Track</span></div>
+    </div>
+    <p class="auth-subtitle" data-nl="Log in om je voortgang te bekijken" data-en="Log in to view your progress">Log in om je voortgang te bekijken</p>
+    <label class="form-label" data-nl="E-MAIL" data-en="EMAIL">E-MAIL</label>
+    <input type="email" class="form-input" id="loginEmail" data-placeholder-nl="jouw@email.com" data-placeholder-en="your@email.com" placeholder="jouw@email.com">
+    <label class="form-label" data-nl="WACHTWOORD" data-en="PASSWORD">WACHTWOORD</label>
+    <input type="password" class="form-input" id="loginPass" data-placeholder-nl="••••••••" data-placeholder-en="••••••••" placeholder="••••••••">
+    <button class="btn-primary" onclick="doLogin()" data-nl="Inloggen" data-en="Log in">Inloggen</button>
+    <p class="auth-link">
+      <span data-nl="Nog geen account?" data-en="No account yet?">Nog geen account?</span>
+      <a href="#" onclick="showAuthPage('registerPage')" data-nl="Registreren" data-en="Register"> Registreren</a>
+    </p>
+  </div>
+</div>
+
+<!-- REGISTER -->
+<div class="auth-wrapper" id="registerPage" style="display:none">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <span class="logo-icon">⚡</span>
+      <div class="logo-text">Baran<span>Track</span></div>
+    </div>
+    <p class="auth-subtitle" data-nl="Maak je account aan" data-en="Create your account">Maak je account aan</p>
+    <label class="form-label" data-nl="NAAM" data-en="NAME">NAAM</label>
+    <input type="text" class="form-input" id="regName" data-placeholder-nl="Jouw naam" data-placeholder-en="Your name" placeholder="Jouw naam">
+    <label class="form-label" data-nl="E-MAIL" data-en="EMAIL">E-MAIL</label>
+    <input type="email" class="form-input" id="regEmail" data-placeholder-nl="jouw@email.com" data-placeholder-en="your@email.com" placeholder="jouw@email.com">
+    <label class="form-label" data-nl="WACHTWOORD" data-en="PASSWORD">WACHTWOORD</label>
+    <input type="password" class="form-input" id="regPass" data-placeholder-nl="Min. 6 tekens" data-placeholder-en="Min. 6 characters" placeholder="Min. 6 tekens">
+    <button class="btn-primary" onclick="doRegister()" data-nl="Account aanmaken" data-en="Create account">Account aanmaken</button>
+    <p class="auth-link">
+      <span data-nl="Al een account?" data-en="Already have an account?">Al een account?</span>
+      <a href="#" onclick="showAuthPage('loginPage')" data-nl="Inloggen" data-en="Log in"> Inloggen</a>
+    </p>
+  </div>
+</div>
+
+<!-- QUESTIONNAIRE -->
+<div class="auth-wrapper" id="questPage" style="display:none">
+  <div class="auth-card" style="max-width:480px">
+    <div class="step-indicator">
+      <div class="step-dot active" id="dot0"></div>
+      <div class="step-dot" id="dot1"></div>
+      <div class="step-dot" id="dot2"></div>
+      <div class="step-dot" id="dot3"></div>
+    </div>
+    <div class="quest-step active" id="step0">
+      <div class="quest-title" data-nl="Wat is je doel? 🎯" data-en="What is your goal? 🎯">Wat is je doel? 🎯</div>
+      <div class="quest-sub" data-nl="We passen je caloriebehoefte hierop aan" data-en="We'll adjust your calorie needs accordingly">We passen je caloriebehoefte hierop aan</div>
+      <div class="goal-options">
+        <div class="goal-option" onclick="selectGoal(this,'afvallen')"><span class="goal-icon">📉</span><span data-nl="Afvallen" data-en="Lose weight">Afvallen</span></div>
+        <div class="goal-option" onclick="selectGoal(this,'behouden')"><span class="goal-icon">⚖️</span><span data-nl="Behouden" data-en="Maintain">Behouden</span></div>
+        <div class="goal-option" onclick="selectGoal(this,'aankomen')"><span class="goal-icon">📈</span><span data-nl="Aankomen" data-en="Gain weight">Aankomen</span></div>
+      </div>
+      <button class="btn-primary" onclick="nextStep(0)" data-nl="Volgende →" data-en="Next →">Volgende →</button>
+    </div>
+    <div class="quest-step" id="step1">
+      <div class="quest-title" data-nl="Jouw gegevens 📏" data-en="Your details 📏">Jouw gegevens 📏</div>
+      <div class="quest-sub" data-nl="Voor een nauwkeurige berekening" data-en="For an accurate calculation">Voor een nauwkeurige berekening</div>
+      <label class="form-label" data-nl="LEEFTIJD" data-en="AGE">LEEFTIJD</label>
+      <input type="number" class="num-input" id="qAge" value="25" min="10" max="120">
+      <label class="form-label" data-nl="LENGTE (cm)" data-en="HEIGHT (cm)">LENGTE (cm)</label>
+      <input type="number" class="num-input" id="qHeight" value="175" min="100" max="250">
+      <label class="form-label" data-nl="GESLACHT" data-en="GENDER">GESLACHT</label>
+      <select class="form-input" id="qGender">
+        <option value="m">Man / Male</option>
+        <option value="f">Vrouw / Female</option>
+      </select>
+      <button class="btn-primary" onclick="nextStep(1)" data-nl="Volgende →" data-en="Next →">Volgende →</button>
+    </div>
+    <div class="quest-step" id="step2">
+      <div class="quest-title" data-nl="Gewicht 🏋️" data-en="Weight 🏋️">Gewicht 🏋️</div>
+      <div class="quest-sub" data-nl="Je huidige en doelgewicht" data-en="Your current and target weight">Je huidige en doelgewicht</div>
+      <label class="form-label" data-nl="HUIDIG GEWICHT (kg)" data-en="CURRENT WEIGHT (kg)">HUIDIG GEWICHT (kg)</label>
+      <input type="number" class="num-input" id="qWeight" value="75" min="20" max="400" step="0.5">
+      <label class="form-label" data-nl="DOELGEWICHT (kg)" data-en="TARGET WEIGHT (kg)">DOELGEWICHT (kg)</label>
+      <input type="number" class="num-input" id="qGoalWeight" value="70" min="20" max="400" step="0.5">
+      <button class="btn-primary" onclick="nextStep(2)" data-nl="Volgende →" data-en="Next →">Volgende →</button>
+    </div>
+    <div class="quest-step" id="step3">
+      <div class="quest-title" data-nl="Activiteitsniveau 🏃" data-en="Activity level 🏃">Activiteitsniveau 🏃</div>
+      <div class="quest-sub" data-nl="Hoe actief ben je gemiddeld?" data-en="How active are you on average?">Hoe actief ben je gemiddeld?</div>
+      <div class="goal-options" style="grid-template-columns:1fr 1fr">
+        <div class="goal-option" onclick="selectActivity(this,1.2)"><span class="goal-icon">🛋️</span><span data-nl="Weinig actief" data-en="Sedentary">Weinig actief</span></div>
+        <div class="goal-option" onclick="selectActivity(this,1.375)"><span class="goal-icon">🚶</span><span data-nl="Licht actief" data-en="Lightly active">Licht actief</span></div>
+        <div class="goal-option" onclick="selectActivity(this,1.55)"><span class="goal-icon">🏋️</span><span data-nl="Matig actief" data-en="Moderately active">Matig actief</span></div>
+        <div class="goal-option" onclick="selectActivity(this,1.725)"><span class="goal-icon">🔥</span><span data-nl="Zeer actief" data-en="Very active">Zeer actief</span></div>
+      </div>
+      <button class="btn-primary" onclick="finishQuest()" data-nl="🚀 Starten!" data-en="🚀 Let's go!">🚀 Starten!</button>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app" style="display:none">
+  <nav class="navbar">
+    <div class="nav-logo" onclick="showAppPage('profilePage',document.querySelectorAll('.nav-link')[0])">⚡ Baran<span>Track</span></div>
+    <div class="nav-links">
+      <button class="nav-link active" onclick="showAppPage('profilePage',this)">👤 <span data-nl="Profiel" data-en="Profile">Profiel</span></button>
+      <button class="nav-link" onclick="showAppPage('foodPage',this)">🍽️ <span data-nl="Eten" data-en="Food">Eten</span></button>
+      <button class="nav-link" onclick="showAppPage('activitiesPage',this)">🏃 <span data-nl="Activiteiten" data-en="Activities">Activiteiten</span></button>
+      <button class="nav-link" onclick="showAppPage('logbookPage',this)">📊 <span data-nl="Logboek" data-en="Logbook">Logboek</span></button>
+    </div>
+    <div class="nav-right">
+      <div style="display:flex;gap:6px">
+        <button class="lang-btn-app active" onclick="setLangApp('nl',this)">NL</button>
+        <button class="lang-btn-app" onclick="setLangApp('en',this)">EN</button>
+      </div>
+      <div class="avatar" id="userAvatar">B</div>
+    </div>
+  </nav>
+
+  <!-- PROFILE PAGE -->
+  <div class="page active" id="profilePage">
+    <div class="profile-hero">
+      <div class="profile-name" id="heroName">Hey, Baran! 👋</div>
+      <div class="profile-goal-badge" id="heroGoal">🎯 Doel: Afvallen</div>
+      <div id="streakBadge" style="display:inline-block;margin-left:10px"></div>
+      <div class="profile-stats">
+        <div class="profile-stat"><div class="profile-stat-val" id="heroWeight">—</div><div class="profile-stat-lbl" data-nl="Huidig gewicht" data-en="Current weight">Huidig gewicht</div></div>
+        <div class="profile-stat"><div class="profile-stat-val" id="heroGoalW">—</div><div class="profile-stat-lbl" data-nl="Doelgewicht" data-en="Target weight">Doelgewicht</div></div>
+        <div class="profile-stat"><div class="profile-stat-val" id="heroBMI">—</div><div class="profile-stat-lbl">BMI</div></div>
+        <div class="profile-stat"><div class="profile-stat-val" id="heroCals">—</div><div class="profile-stat-lbl" data-nl="Dagdoel kcal" data-en="Daily goal kcal">Dagdoel kcal</div></div>
+      </div>
+    </div>
+    <div class="cards-row">
+      <div class="card">
+        <div class="card-title">⚖️ <span data-nl="Gewicht bijwerken" data-en="Update weight">Gewicht bijwerken</span></div>
+        <div class="weight-labels"><span id="startWeightLbl">—</span><span id="goalWeightLbl">—</span></div>
+        <div class="weight-bar-bg"><div class="weight-bar-fill" id="weightProgressBar" style="width:0%"></div></div>
+        <div class="weight-input-row" style="margin-top:12px">
+  <input type="number" class="num-input" id="newWeightInput" value="75" min="20" max="400" step="0.5" style="margin-bottom:0;flex:1">
+  <button class="btn-sm" onclick="logWeight()" data-nl="Opslaan" data-en="Save">Opslaan</button>
+</div>
+      </div>
+      <div class="card">
+        <div class="card-title">📊 <span data-nl="Vandaag" data-en="Today">Vandaag</span></div>
+        <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px">
+          <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:14px;color:var(--gray-600)" data-nl="Gegeten" data-en="Eaten">Gegeten</span><span style="font-weight:800;font-family:'Nunito',sans-serif;font-size:18px;color:var(--green-dark)" id="todayEaten">0 kcal</span></div>
+          <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:14px;color:var(--gray-600)" data-nl="Verbrand" data-en="Burned">Verbrand</span><span style="font-weight:800;font-family:'Nunito',sans-serif;font-size:18px;color:var(--blue)" id="todayBurned">0 kcal</span></div>
+          <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:14px;color:var(--gray-600)" data-nl="Resterend" data-en="Remaining">Resterend</span><span style="font-weight:800;font-family:'Nunito',sans-serif;font-size:18px;color:var(--orange)" id="todayRemaining">— kcal</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="nav-cards">
+      <div class="nav-card green" onclick="showAppPage('foodPage',document.querySelectorAll('.nav-link')[1])"><div class="nav-card-icon">🍽️</div><div class="nav-card-title" data-nl="Eten loggen" data-en="Log food">Eten loggen</div><div class="nav-card-sub" data-nl="Ontbijt, lunch, diner & meer" data-en="Breakfast, lunch, dinner & more">Ontbijt, lunch, diner & meer</div></div>
+      <div class="nav-card blue" onclick="showAppPage('activitiesPage',document.querySelectorAll('.nav-link')[2])"><div class="nav-card-icon">🏃</div><div class="nav-card-title" data-nl="Activiteit toevoegen" data-en="Add activity">Activiteit toevoegen</div><div class="nav-card-sub" data-nl="Lopen, fietsen, zwemmen & meer" data-en="Running, cycling, swimming & more">Lopen, fietsen, zwemmen & meer</div></div>
+    </div>
+  </div>
+
+  <!-- FOOD PAGE -->
+  <div class="page" id="foodPage">
+    <div class="page-title" data-nl="🍽️ Eten" data-en="🍽️ Food">🍽️ Eten</div>
+    <div class="page-sub" id="foodDateSub">Vandaag</div>
+    <div class="daily-summary">
+      <div class="cal-ring">
+        <svg width="80" height="80" viewBox="0 0 80 80">
+          <circle cx="40" cy="40" r="32" fill="none" stroke="#e5e7eb" stroke-width="8"/>
+          <circle cx="40" cy="40" r="32" fill="none" stroke="#22c55e" stroke-width="8" stroke-dasharray="201" id="calRingProgress" stroke-dashoffset="201" stroke-linecap="round" style="transition:stroke-dashoffset .6s ease"/>
+        </svg>
+        <div class="cal-ring-text"><div class="cal-ring-num" id="ringEaten">0</div><div class="cal-ring-lbl">kcal</div></div>
+      </div>
+      <div class="cal-summary-right">
+        <div class="cal-summary-title" data-nl="Dagelijkse voortgang" data-en="Daily progress">Dagelijkse voortgang</div>
+        <div class="macro-bars">
+          <div class="macro-bar-row"><div class="macro-bar-lbl" data-nl="Eiwit" data-en="Protein">Eiwit</div><div class="macro-bar-bg"><div class="macro-bar-fill" id="proteinBar" style="width:0%;background:#3b82f6"></div></div><div class="macro-bar-val" id="proteinVal">0g</div></div>
+          <div class="macro-bar-row"><div class="macro-bar-lbl" data-nl="Koolh." data-en="Carbs">Koolh.</div><div class="macro-bar-bg"><div class="macro-bar-fill" id="carbBar" style="width:0%;background:#f97316"></div></div><div class="macro-bar-val" id="carbVal">0g</div></div>
+          <div class="macro-bar-row"><div class="macro-bar-lbl" data-nl="Vet" data-en="Fat">Vet</div><div class="macro-bar-bg"><div class="macro-bar-fill" id="fatBar" style="width:0%;background:#a855f7"></div></div><div class="macro-bar-val" id="fatVal">0g</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="scan-bar">
+      <button class="scan-btn" onclick="openPhotoModal()">📷 <span data-nl="Foto maken" data-en="Take photo">Foto maken</span></button>
+      <button class="scan-btn" onclick="openCameraScanner()">
+          📷 <span data-nl="Camera scan" data-en="Camera scan">Camera scan</span>
+        </button>
+        <button class="scan-btn" onclick="openBarcodeModal()">📊 <span data-nl="Barcode scannen" data-en="Scan barcode">Barcode scannen</span></button>
+    </div>
+    <div class="meal-sections">
+      <div class="meal-section"><div class="meal-header"><div class="meal-header-left"><div class="meal-icon" style="background:#fef9c3">🌅</div><div><div class="meal-title" data-nl="Ontbijt" data-en="Breakfast">Ontbijt</div><div class="meal-cals" id="cals-ontbijt">0 kcal</div></div></div></div><div class="meal-items" id="items-ontbijt"><div class="empty-state"><div class="empty-icon">🌅</div><span data-nl="Nog niets gelogd" data-en="Nothing logged yet">Nog niets gelogd</span></div></div><button class="meal-add-btn" onclick="openFoodSearch('ontbijt')">＋ <span data-nl="Voedsel toevoegen" data-en="Add food">Voedsel toevoegen</span></button></div>
+      <div class="meal-section"><div class="meal-header"><div class="meal-header-left"><div class="meal-icon" style="background:#dcfce7">☀️</div><div><div class="meal-title" data-nl="Lunch" data-en="Lunch">Lunch</div><div class="meal-cals" id="cals-lunch">0 kcal</div></div></div></div><div class="meal-items" id="items-lunch"><div class="empty-state"><div class="empty-icon">☀️</div><span data-nl="Nog niets gelogd" data-en="Nothing logged yet">Nog niets gelogd</span></div></div><button class="meal-add-btn" onclick="openFoodSearch('lunch')">＋ <span data-nl="Voedsel toevoegen" data-en="Add food">Voedsel toevoegen</span></button></div>
+      <div class="meal-section"><div class="meal-header"><div class="meal-header-left"><div class="meal-icon" style="background:#fce7f3">🍎</div><div><div class="meal-title" data-nl="Tussendoortje" data-en="Snack">Tussendoortje</div><div class="meal-cals" id="cals-tussendoortje">0 kcal</div></div></div></div><div class="meal-items" id="items-tussendoortje"><div class="empty-state"><div class="empty-icon">🍎</div><span data-nl="Nog niets gelogd" data-en="Nothing logged yet">Nog niets gelogd</span></div></div><button class="meal-add-btn" onclick="openFoodSearch('tussendoortje')">＋ <span data-nl="Voedsel toevoegen" data-en="Add food">Voedsel toevoegen</span></button></div>
+      <div class="meal-section"><div class="meal-header"><div class="meal-header-left"><div class="meal-icon" style="background:#ede9fe">🌙</div><div><div class="meal-title" data-nl="Avondeten" data-en="Dinner">Avondeten</div><div class="meal-cals" id="cals-avondeten">0 kcal</div></div></div></div><div class="meal-items" id="items-avondeten"><div class="empty-state"><div class="empty-icon">🌙</div><span data-nl="Nog niets gelogd" data-en="Nothing logged yet">Nog niets gelogd</span></div></div><button class="meal-add-btn" onclick="openFoodSearch('avondeten')">＋ <span data-nl="Voedsel toevoegen" data-en="Add food">Voedsel toevoegen</span></button></div>
+    </div>
+  </div>
+
+  <!-- ACTIVITIES PAGE -->
+  <div class="page" id="activitiesPage">
+    <div class="page-title" data-nl="🏃 Activiteiten" data-en="🏃 Activities">🏃 Activiteiten</div>
+    <div class="page-sub" data-nl="Zoek of voer zelf in" data-en="Search or enter manually">Zoek of voer zelf in</div>
+
+    <div class="activity-search-wrap">
+      <div class="card-title">🔍 <span data-nl="Zoek activiteit" data-en="Search activity">Zoek activiteit</span></div>
+      <div class="search-input-wrap" style="margin-top:12px">
+        <span class="search-icon">🔍</span>
+        <input type="text" class="search-input" id="activitySearchInput" data-placeholder-nl="Bijv. lopen, fietsen, voetbal..." data-placeholder-en="E.g. running, cycling, football..." placeholder="Bijv. lopen, fietsen, voetbal..." oninput="filterActivities(this.value)">
+      </div>
+      <div class="activity-grid" id="activityResults"></div>
+    </div>
+
+    <div class="activity-calc" id="activityCalcCard" style="display:none">
+      <div class="card-title">⚙️ <span data-nl="Bereken calorieën" data-en="Calculate calories">Bereken calorieën</span></div>
+      <div style="font-size:14px;color:var(--gray-600);margin-top:4px" id="selectedActivityName">—</div>
+      <div class="activity-inputs">
+        <div class="input-group"><label data-nl="DUUR (min)" data-en="DURATION (min)">DUUR (min)</label><input type="number" id="actDuration" placeholder="30" min="1" oninput="calcActivity()"></div>
+        <div class="input-group"><label data-nl="GEWICHT (kg)" data-en="WEIGHT (kg)">GEWICHT (kg)</label><input type="number" id="actWeight" placeholder="75" min="30" oninput="calcActivity()"></div>
+        <div class="input-group" id="actDistanceGroup" style="display:none"><label data-nl="AFSTAND (km)" data-en="DISTANCE (km)">AFSTAND (km)</label><input type="number" id="actDistance" placeholder="5" step="0.1" oninput="calcActivity()"></div>
+      </div>
+      <div class="cal-result-box">
+        <div><div style="font-size:13px;color:var(--gray-600);margin-bottom:4px" data-nl="Verbrande calorieën" data-en="Burned calories">Verbrande calorieën</div><div class="cal-result-num" id="burnedCalResult">0</div></div>
+        <div style="text-align:right"><div style="font-size:13px;color:var(--gray-400);margin-bottom:8px" id="actMETinfo">MET: —</div><button class="btn-sm" onclick="logActivity()" data-nl="✓ Opslaan" data-en="✓ Save">✓ Opslaan</button></div>
+      </div>
+    </div>
+
+    <!-- MANUAL ACTIVITY -->
+    <div class="manual-activity-section">
+      <div class="card-title">✏️ <span data-nl="Zelf invullen" data-en="Enter manually">Zelf invullen</span></div>
+      <div style="font-size:13px;color:var(--gray-400);margin-bottom:14px" data-nl="Activiteit niet gevonden? Vul zelf in." data-en="Activity not found? Enter it yourself.">Activiteit niet gevonden? Vul zelf in.</div>
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px;margin-bottom:12px">
+        <div class="input-group"><label data-nl="NAAM ACTIVITEIT" data-en="ACTIVITY NAME">NAAM ACTIVITEIT</label><input type="text" id="manActName" placeholder="Bijv. Skateboarden"></div>
+        <div class="input-group"><label data-nl="DUUR (min)" data-en="DURATION (min)">DUUR (min)</label><input type="number" id="manActDuration" placeholder="30"></div>
+        <div class="input-group"><label data-nl="VERBRANDE KCAL" data-en="BURNED KCAL">VERBRANDE KCAL</label><input type="number" id="manActCal" placeholder="200"></div>
+      </div>
+      <button class="btn-sm" onclick="logManualActivity()" data-nl="✓ Opslaan" data-en="✓ Save">✓ Opslaan</button>
+    </div>
+
+    <div class="logged-activities" style="margin-top:20px">
+      <div class="card-title" style="margin-bottom:12px">📋 <span data-nl="Vandaag gelogd" data-en="Logged today">Vandaag gelogd</span></div>
+      <div id="loggedActivitiesList"><div class="empty-state"><div class="empty-icon">🏃</div><span data-nl="Nog geen activiteiten" data-en="No activities yet">Nog geen activiteiten</span></div></div>
+    </div>
+  </div>
+
+  <!-- LOGBOOK PAGE -->
+  <div class="page" id="logbookPage">
+    <div class="page-title" data-nl="📊 Logboek" data-en="📊 Logbook">📊 Logboek</div>
+    <div class="page-sub" data-nl="Je voortgang in één oogopslag" data-en="Your progress at a glance">Je voortgang in één oogopslag</div>
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-card-num" id="logCurrentWeight">—</div><div class="stat-card-lbl" data-nl="Huidig gewicht" data-en="Current weight">Huidig gewicht</div></div>
+      <div class="stat-card"><div class="stat-card-num" id="logWeightDiff">—</div><div class="stat-card-lbl" data-nl="Verschil start" data-en="Change since start">Verschil start</div></div>
+      <div class="stat-card"><div class="stat-card-num" id="logAvgCals">—</div><div class="stat-card-lbl" data-nl="Gem. kcal/dag" data-en="Avg kcal/day">Gem. kcal/dag</div></div>
+    </div>
+    <div class="chart-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+        <div class="chart-title" data-nl="⚖️ Gewichtsverloop" data-en="⚖️ Weight history">⚖️ Gewichtsverloop</div>
+        <div style="display:flex;gap:6px">
+          <button class="tab-btn active" onclick="setWeightPeriod('week',this)" data-nl="Week" data-en="Week">Week</button>
+          <button class="tab-btn" onclick="setWeightPeriod('month',this)" data-nl="Maand" data-en="Month">Maand</button>
+          <button class="tab-btn" onclick="setWeightPeriod('year',this)" data-nl="Jaar" data-en="Year">Jaar</button>
+        </div>
+      </div>
+      <div class="chart-sub" data-nl="Jouw gewicht over de tijd" data-en="Your weight over time">Jouw gewicht over de tijd</div>
+      <div class="weight-chart-wrap">
+        <div class="weight-yaxis" id="weightYAxis"></div>
+        <div class="weight-chart-inner"><canvas id="weightChart" height="160" style="width:100%;height:160px"></canvas></div>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+        <div class="chart-title" data-nl="🔥 Calorieën per dag" data-en="🔥 Calories per day">🔥 Calorieën per dag</div>
+        <div style="display:flex;gap:6px">
+          <button class="tab-btn active" onclick="setCalPeriod('week',this)" data-nl="Week" data-en="Week">Week</button>
+          <button class="tab-btn" onclick="setCalPeriod('month',this)" data-nl="Maand" data-en="Month">Maand</button>
+          <button class="tab-btn" onclick="setCalPeriod('avg',this)" data-nl="Gemiddelde" data-en="Average">Gemiddelde</button>
+        </div>
+      </div>
+      <div class="avg-badge" id="avgBadge">📊 Gem: — kcal/dag</div>
+      <div class="bar-chart" id="calBarChart"></div>
+    </div>
+    <div class="chart-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <div class="chart-title" data-nl="💊 Macro's (afgelopen week)" data-en="💊 Macros (last week)">💊 Macro's (afgelopen week)</div>
+        <button class="tab-btn active" id="macroToggleBtn" onclick="toggleMacros(this)" data-nl="Verberg" data-en="Hide">Verberg</button>
+      </div>
+      <div id="macroContent">
+        <div class="macro-pie-wrap">
+          <canvas id="macroPieCanvas" width="160" height="160"></canvas>
+          <div class="macro-legend">
+            <div class="macro-legend-item"><div class="macro-dot" style="background:#3b82f6"></div><div class="macro-legend-name" data-nl="Eiwitten" data-en="Protein">Eiwitten</div><div class="macro-legend-val" id="legendProtein">0g</div></div>
+            <div class="macro-legend-item"><div class="macro-dot" style="background:#f97316"></div><div class="macro-legend-name" data-nl="Koolhydraten" data-en="Carbs">Koolhydraten</div><div class="macro-legend-val" id="legendCarbs">0g</div></div>
+            <div class="macro-legend-item"><div class="macro-dot" style="background:#a855f7"></div><div class="macro-legend-name" data-nl="Vetten" data-en="Fats">Vetten</div><div class="macro-legend-val" id="legendFats">0g</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FOOD SEARCH MODAL -->
+<div class="modal-overlay" id="foodSearchModal">
+  <div class="modal">
+    <div class="modal-title">🔍 <span data-nl="Voedsel zoeken" data-en="Search food">Voedsel zoeken</span><button class="modal-close" onclick="closeModal('foodSearchModal')">✕</button></div>
+    <div class="search-input-wrap">
+      <span class="search-icon">🔍</span>
+      <input type="text" class="search-input" id="foodSearchInput" data-placeholder-nl="Bijv. wraps, doner, pizza, brood..." data-placeholder-en="E.g. wraps, doner, pizza, bread..." placeholder="Bijv. wraps, doner, pizza, brood..." oninput="searchFood(this.value)">
+    </div>
+    <div style="font-size:12px;color:var(--gray-400);margin-bottom:12px">💡 Open Food Facts + lokale database van 200+ producten</div>
+    <div id="foodSearchResults" class="search-results"></div>
+    <div id="portionSelect" class="portion-select">
+      <div class="portion-row">
+        <div class="portion-label" id="portionFoodName">—</div>
+        <input type="number" id="portionGrams" value="100" min="1" max="2000" oninput="updatePortionPreview()">
+        <span style="font-size:13px;font-weight:600;color:var(--gray-600)">g</span>
+        <div class="portion-cal-preview" id="portionCalPreview">— kcal</div>
+      </div>
+      <button class="btn-primary" style="margin-top:8px" onclick="addFoodToMeal()" data-nl="Toevoegen ✓" data-en="Add ✓">Toevoegen ✓</button>
+    </div>
+    <!-- MANUAL FOOD ADD -->
+    <div class="manual-add-section">
+      <div class="manual-add-title">✏️ <span data-nl="Niet gevonden? Zelf invullen:" data-en="Not found? Enter manually:">Niet gevonden? Zelf invullen:</span></div>
+      <div class="manual-inputs">
+        <input type="text" id="manFoodName" placeholder="Naam (bijv. Wrap)">
+        <input type="number" id="manFoodCal" placeholder="kcal/100g">
+        <input type="number" id="manFoodProtein" placeholder="Eiwit g">
+        <input type="number" id="manFoodCarbs" placeholder="Koolh g">
+        <input type="number" id="manFoodFat" placeholder="Vet g">
+      </div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <input type="number" id="manFoodGrams" value="100" placeholder="gram" style="width:80px;padding:9px;border:2px solid var(--gray-200);border-radius:8px;font-size:13px;font-family:'Poppins',sans-serif;outline:none">
+        <span style="font-size:13px;font-weight:600;color:var(--gray-600)">gram</span>
+        <button class="btn-sm" onclick="addManualFood()" data-nl="Toevoegen" data-en="Add">Toevoegen</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- BARCODE MODAL -->
+<div class="modal-overlay" id="barcodeModal">
+  <div class="modal">
+    <div class="modal-title">📊 <span data-nl="Barcode scannen" data-en="Scan barcode">Barcode scannen</span><button class="modal-close" onclick="closeModal('barcodeModal')">✕</button></div>
+    <div id="cameraScanArea" style="display:none;margin-bottom:16px">
+      <video id="cameraPreview" style="width:100%;border-radius:12px;max-height:220px;background:#000"></video>
+      <button class="btn-sm" style="width:100%;margin-top:8px;background:var(--red);color:white;border:none" onclick="stopCameraScan()">
+        ⏹ <span data-nl="Camera stoppen" data-en="Stop camera">Camera stoppen</span>
+      </button>
+    </div>
+    <div id="cameraScanStatus" style="display:none;text-align:center;padding:8px;font-size:13px;color:var(--gray-400)">📷 Richt op barcode...</div>
+    <div class="barcode-scanner-sim"><div class="scan-anim">📷</div><p style="margin-top:12px;font-size:13px" data-nl="Camera vereist backend. Voer barcode handmatig in:" data-en="Camera requires backend. Enter barcode manually:">Camera vereist backend. Voer barcode handmatig in:</p></div>
+    <label class="form-label" data-nl="BARCODE NUMMER" data-en="BARCODE NUMBER">BARCODE NUMMER</label>
+    <div style="display:flex;gap:10px">
+      <input type="text" class="form-input" id="barcodeInput" placeholder="b.v. 8710398123456" style="margin-bottom:0;flex:1">
+      <button class="btn-sm" onclick="lookupBarcode()" style="height:50px" data-nl="Zoeken" data-en="Search">Zoeken</button>
+    </div>
+    <div id="barcodeResult" style="margin-top:12px"></div>
+  </div>
+</div>
+
+<!-- PHOTO MODAL -->
+<div class="modal-overlay" id="photoModal">
+  <div class="modal">
+    <div class="modal-title">📷 <span data-nl="Foto analyseren" data-en="Analyze photo">Foto analyseren</span><button class="modal-close" onclick="closeModal('photoModal')">✕</button></div>
+    <div class="photo-drop" onclick="document.getElementById('photoFileInput').click()"><div style="font-size:48px;margin-bottom:8px">📷</div><div style="color:var(--gray-400);font-size:14px" data-nl="Klik om foto te uploaden" data-en="Click to upload a photo">Klik om foto te uploaden</div></div>
+    <input type="file" id="photoFileInput" accept="image/*" capture="environment" onchange="analyzePhoto(this)">
+    <div class="ai-analyzing" id="aiAnalyzing"><div class="spinner" style="display:block;margin:0 auto 8px"></div><p data-nl="AI analyseert..." data-en="AI is analyzing...">AI analyseert...</p></div>
+    <div id="photoResult"></div>
+    <div style="background:var(--gray-50);border-radius:10px;padding:12px;font-size:12px;color:var(--gray-400);margin-top:8px">💡 <span data-nl="Voeg Gemini API key toe in je backend voor foto-herkenning." data-en="Add Gemini API key in your backend for photo recognition.">Voeg Gemini API key toe in je backend voor foto-herkenning.</span></div>
+  </div>
+</div>
+
+<div class="notif" id="notif">✅ <span id="notifText"></span></div>
+
+<script>
+// ===== STATE =====
+const S = {
+  lang:'nl', user:null,
+  meals:{ontbijt:[],lunch:[],tussendoortje:[],avondeten:[]},
+  activities:[], weightLog:[], calLog:{}, macroLog:{},
+  selectedActivity:null, currentMeal:null, selectedFood:null, calPeriod:'week'
+};
+
+// ===== 400+ FOOD DATABASE =====
+const FOODS = [
+  // === BROOD & GRANEN ===
+  {n:'Witbrood',c:265,p:8,k:50,v:3},{n:'Volkoren brood',c:247,p:9,k:41,v:3},{n:'Tijgerbrood',c:270,p:8,k:50,v:4},{n:'Meergranenbrood',c:250,p:9,k:44,v:3},{n:'Roggebrood',c:215,p:8,k:41,v:1},{n:'Ciabatta',c:271,p:9,k:50,v:4},{n:'Stokbrood',c:275,p:9,k:55,v:1},{n:'Pita brood',c:274,p:9,k:52,v:2},{n:'Naan',c:317,p:9,k:56,v:7},{n:'Wrap (meel)',c:290,p:8,k:49,v:6},{n:'Volkoren wrap',c:240,p:9,k:42,v:4},{n:'Bagel',c:250,p:9,k:48,v:1},{n:'Croissant',c:406,p:8,k:43,v:22},{n:'Croissant kaas/ham',c:430,p:12,k:40,v:24},{n:'Cracker',c:408,p:9,k:70,v:11},{n:'Rijstwafels',c:387,p:8,k:82,v:3},{n:'Beschuit',c:395,p:10,k:75,v:5},{n:'Knackebrod',c:350,p:10,k:70,v:3},
+  {n:'Rijst (gekookt)',c:130,p:3,k:28,v:0},{n:'Zilvervlies rijst',c:123,p:3,k:26,v:1},{n:'Basmati rijst',c:121,p:2,k:26,v:0},{n:'Jasmijn rijst',c:129,p:3,k:28,v:0},{n:'Pasta (gekookt)',c:131,p:5,k:25,v:1},{n:'Volkoren pasta',c:124,p:5,k:23,v:1},{n:'Pasta (droog)',c:355,p:13,k:70,v:2},{n:'Couscous (gaar)',c:112,p:4,k:23,v:0},{n:'Quinoa (gaar)',c:120,p:4,k:22,v:2},{n:'Bulgur (gaar)',c:83,p:3,k:18,v:0},{n:'Gierst (gaar)',c:119,p:3,k:23,v:1},{n:'Noedels (gaar)',c:138,p:5,k:25,v:2},{n:'Soba noedels',c:99,p:5,k:21,v:0},
+  {n:'Havermout (droog)',c:379,p:13,k:68,v:7},{n:'Havermout (bereid)',c:68,p:2,k:12,v:2},{n:'Granola',c:471,p:10,k:64,v:20},{n:'Muesli',c:363,p:10,k:66,v:6},{n:'Cornflakes',c:357,p:7,k:84,v:1},{n:'Brinta (droog)',c:340,p:10,k:65,v:4},{n:'Special K',c:370,p:15,k:75,v:1},{n:'Chocapic',c:393,p:8,k:80,v:5},{n:'Sultana koek',c:385,p:7,k:72,v:7},
+  // === VLEES ===
+  {n:'Kipfilet (gegrild)',c:165,p:31,k:0,v:4},{n:'Kipfilet (gebakken)',c:195,p:29,k:0,v:8},{n:'Kippendij (zonder vel)',c:180,p:24,k:0,v:9},{n:'Kippendij (met vel)',c:209,p:26,k:0,v:11},{n:'Kippenvleugel',c:203,p:25,k:0,v:11},{n:'Kipdrumstick',c:174,p:23,k:0,v:9},{n:'Kipschnitzel',c:210,p:26,k:8,v:8},{n:'Kipsate',c:175,p:22,k:2,v:9},{n:'Kalkoenfilet',c:157,p:30,k:0,v:3},{n:'Rundergehakt (mager)',c:218,p:27,k:0,v:12},{n:'Rundergehakt (half om half)',c:250,p:22,k:0,v:18},{n:'Biefstuk',c:242,p:26,k:0,v:15},{n:'Stoofvlees',c:235,p:25,k:0,v:14},{n:'Varkensfilet',c:188,p:27,k:0,v:8},{n:'Varkensrib',c:274,p:23,k:0,v:20},{n:'Spek (gebakken)',c:541,p:37,k:1,v:42},{n:'Speklapje',c:310,p:24,k:0,v:23},{n:'Lamsvlees',c:258,p:25,k:0,v:17},{n:'Lamsgehakt',c:267,p:17,k:0,v:22},{n:'Lever (rund)',c:175,p:27,k:4,v:5},{n:'Braadworst',c:301,p:13,k:2,v:27},{n:'Salami',c:425,p:22,k:2,v:37},{n:'Chorizo',c:455,p:24,k:1,v:39},{n:'Pepperoni',c:494,p:21,k:1,v:44},{n:'Ham (gekookt)',c:145,p:21,k:1,v:6},{n:'Kipnuggets',c:246,p:15,k:17,v:13},{n:'Gehaktbal',c:260,p:18,k:8,v:18},{n:'Frikandel',c:278,p:14,k:10,v:21},{n:'Kroket',c:260,p:10,k:22,v:15},{n:'Bitterballen',c:295,p:9,k:20,v:20},
+  // === VIS ===
+  {n:'Zalm (vers)',c:208,p:20,k:0,v:13},{n:'Zalm (gerookt)',c:177,p:23,k:0,v:9},{n:'Tonijn (blik in water)',c:116,p:26,k:0,v:1},{n:'Tonijn (blik in olie)',c:198,p:24,k:0,v:11},{n:'Kabeljauw',c:82,p:18,k:0,v:1},{n:'Tilapia',c:96,p:20,k:0,v:2},{n:'Makreel',c:205,p:19,k:0,v:14},{n:'Makreel (blik)',c:220,p:18,k:0,v:16},{n:'Haring',c:203,p:18,k:0,v:14},{n:'Haring (zuur)',c:126,p:12,k:5,v:7},{n:'Garnalen',c:99,p:24,k:0,v:0},{n:'Mosselen',c:86,p:12,k:4,v:2},{n:'Sardines (blik)',c:208,p:25,k:0,v:11},{n:'Paling',c:236,p:15,k:0,v:19},{n:'Scampi',c:90,p:18,k:1,v:1},{n:'Inktvis',c:92,p:16,k:3,v:1},{n:'Visstick',c:200,p:11,k:20,v:8},{n:'Kibbeling',c:245,p:16,k:19,v:10},{n:'Lekkerbekje',c:225,p:13,k:18,v:10},
+  // === ZUIVEL & EIEREN ===
+  {n:'Ei (heel)',c:155,p:13,k:1,v:11},{n:'Eiwit',c:52,p:11,k:1,v:0},{n:'Eidooier',c:322,p:16,k:1,v:27},{n:'Roerei',c:148,p:10,k:1,v:12},{n:'Omelet',c:154,p:10,k:1,v:12},{n:'Hardgekookt ei',c:155,p:13,k:1,v:11},{n:'Volle melk',c:61,p:3,k:5,v:3},{n:'Halfvolle melk',c:46,p:3,k:5,v:2},{n:'Magere melk',c:34,p:3,k:5,v:0},{n:'Sojadrank',c:33,p:3,k:2,v:2},{n:'Haverdrank',c:47,p:1,k:9,v:1},{n:'Amandelmelk',c:24,p:1,k:2,v:1},{n:'Yoghurt naturel',c:61,p:4,k:5,v:3},{n:'Griekse yoghurt vol',c:97,p:9,k:4,v:5},{n:'Griekse yoghurt 0%',c:59,p:10,k:4,v:0},{n:'Skyr',c:63,p:11,k:4,v:0},{n:'Kwark (mager)',c:67,p:11,k:4,v:0},{n:'Kwark (vol)',c:104,p:11,k:4,v:5},{n:'Vla (vanille)',c:103,p:3,k:16,v:3},{n:'Gouda kaas',c:356,p:25,k:1,v:28},{n:'Jong belegen kaas',c:375,p:24,k:0,v:31},{n:'Belegen kaas',c:390,p:24,k:0,v:32},{n:'Goudse 30+ kaas',c:276,p:29,k:1,v:17},{n:'Mozzarella',c:280,p:28,k:3,v:17},{n:'Roomkaas',c:342,p:6,k:4,v:33},{n:'Feta',c:264,p:14,k:4,v:21},{n:'Brie',c:334,p:21,k:0,v:28},{n:'Camembert',c:300,p:20,k:1,v:24},{n:'Parmezaan',c:431,p:38,k:0,v:29},{n:'Cheddar',c:403,p:25,k:1,v:33},{n:'Boter',c:717,p:1,k:0,v:81},{n:'Margarine',c:720,p:0,k:0,v:80},{n:'Slagroom',c:345,p:2,k:3,v:35},{n:'Creme fraiche',c:292,p:2,k:4,v:30},{n:'Mascarpone',c:429,p:5,k:4,v:44},{n:'Karnemelk',c:40,p:3,k:5,v:1},
+  // === GROENTEN ===
+  {n:'Broccoli',c:34,p:3,k:7,v:0},{n:'Spinazie',c:23,p:3,k:4,v:0},{n:'Tomaat',c:18,p:1,k:4,v:0},{n:'Cherrytomaat',c:18,p:1,k:4,v:0},{n:'Komkommer',c:15,p:1,k:4,v:0},{n:'Paprika rood',c:31,p:1,k:7,v:0},{n:'Paprika groen',c:20,p:1,k:5,v:0},{n:'Paprika geel',c:27,p:1,k:6,v:0},{n:'Wortel',c:41,p:1,k:10,v:0},{n:'Sla',c:14,p:1,k:3,v:0},{n:'Ui',c:40,p:1,k:9,v:0},{n:'Rode ui',c:40,p:1,k:9,v:0},{n:'Knoflook',c:149,p:6,k:33,v:1},{n:'Champignons',c:22,p:3,k:3,v:0},{n:'Courgette',c:17,p:1,k:3,v:0},{n:'Aubergine',c:25,p:1,k:6,v:0},{n:'Bloemkool',c:25,p:2,k:5,v:0},{n:'Spruitjes',c:43,p:4,k:9,v:0},{n:'Sperziebonen',c:31,p:2,k:7,v:0},{n:'Mais (blik)',c:86,p:3,k:17,v:1},{n:'Avocado',c:160,p:2,k:9,v:15},{n:'Aardappel',c:87,p:2,k:20,v:0},{n:'Zoete aardappel',c:86,p:2,k:20,v:0},{n:'Prei',c:61,p:2,k:14,v:0},{n:'Selderij',c:16,p:1,k:3,v:0},{n:'Venkel',c:31,p:1,k:7,v:0},{n:'Radijs',c:16,p:1,k:3,v:0},{n:'Witlof',c:17,p:1,k:4,v:0},{n:'Rucola',c:25,p:3,k:3,v:0},{n:'Paksoi',c:13,p:1,k:2,v:0},{n:'Pompoen',c:26,p:1,k:7,v:0},{n:'Bieten',c:43,p:2,k:10,v:0},{n:'Asperge',c:20,p:2,k:4,v:0},{n:'Erwten (diepvries)',c:81,p:5,k:14,v:0},{n:'Rode kool',c:31,p:2,k:7,v:0},{n:'Spitskool',c:25,p:1,k:5,v:0},{n:'Snijbonen',c:28,p:2,k:6,v:0},{n:'Jalapeno',c:27,p:1,k:6,v:0},
+  // === FRUIT ===
+  {n:'Banaan',c:89,p:1,k:23,v:0},{n:'Appel',c:52,p:0,k:14,v:0},{n:'Sinaasappel',c:47,p:1,k:12,v:0},{n:'Aardbei',c:32,p:1,k:8,v:0},{n:'Mango',c:60,p:1,k:15,v:0},{n:'Druiven',c:69,p:1,k:18,v:0},{n:'Watermeloen',c:30,p:1,k:8,v:0},{n:'Kiwi',c:61,p:1,k:15,v:1},{n:'Peer',c:57,p:0,k:15,v:0},{n:'Perzik',c:39,p:1,k:10,v:0},{n:'Ananas',c:50,p:1,k:13,v:0},{n:'Kers',c:50,p:1,k:12,v:0},{n:'Blauwe bessen',c:57,p:1,k:14,v:0},{n:'Citroen',c:29,p:1,k:9,v:0},{n:'Grapefruit',c:42,p:1,k:11,v:0},{n:'Meloen',c:34,p:1,k:8,v:0},{n:'Frambozen',c:52,p:1,k:12,v:1},{n:'Bramen',c:43,p:1,k:10,v:0},{n:'Pruim',c:46,p:1,k:11,v:0},{n:'Abrikoos',c:48,p:1,k:11,v:0},{n:'Nectarine',c:44,p:1,k:11,v:0},{n:'Vijgen',c:74,p:1,k:19,v:0},{n:'Dadels',c:277,p:2,k:75,v:0},{n:'Rozijnen',c:299,p:3,k:79,v:0},{n:'Papaya',c:39,p:1,k:10,v:0},{n:'Granaatappel',c:83,p:2,k:19,v:1},{n:'Kokos vers',c:354,p:3,k:15,v:33},
+  // === NOTEN & ZADEN ===
+  {n:'Amandelen',c:579,p:21,k:22,v:50},{n:'Walnoten',c:654,p:15,k:14,v:65},{n:'Cashewnoten',c:553,p:18,k:30,v:44},{n:'Pindanoten',c:567,p:26,k:16,v:49},{n:'Hazelnoten',c:628,p:15,k:17,v:61},{n:'Macadamia',c:718,p:8,k:14,v:76},{n:'Paranoten',c:656,p:14,k:12,v:66},{n:'Pistache',c:562,p:20,k:28,v:45},{n:'Gezouten pinda',c:580,p:25,k:15,v:50},{n:'Pindakaas',c:588,p:25,k:20,v:50},{n:'Amandelpasta',c:614,p:21,k:20,v:56},{n:'Cashewpasta',c:580,p:17,k:28,v:46},{n:'Zonnebloempitten',c:584,p:21,k:20,v:51},{n:'Pompoenpitten',c:559,p:30,k:11,v:49},{n:'Chiazaad',c:486,p:17,k:42,v:31},{n:'Lijnzaad',c:534,p:18,k:29,v:42},{n:'Sesamzaad',c:573,p:18,k:23,v:50},{n:'Hennepzaad',c:553,p:31,k:9,v:49},
+  // === PEULVRUCHTEN ===
+  {n:'Kikkererwten (blik)',c:139,p:7,k:23,v:2},{n:'Linzen (gaar)',c:116,p:9,k:20,v:0},{n:'Rode linzen',c:100,p:8,k:17,v:0},{n:'Zwarte bonen',c:132,p:9,k:24,v:1},{n:'Witte bonen',c:127,p:9,k:23,v:0},{n:'Bruine bonen',c:105,p:8,k:18,v:1},{n:'Kapucijners',c:119,p:8,k:21,v:0},{n:'Tofu naturel',c:76,p:8,k:2,v:4},{n:'Tofu stevig',c:144,p:17,k:3,v:9},{n:'Tempeh',c:193,p:19,k:8,v:11},{n:'Edamame',c:122,p:11,k:10,v:5},
+  // === SNACKS ===
+  {n:'Chips naturel',c:536,p:7,k:53,v:35},{n:'Paprika chips',c:530,p:6,k:53,v:33},{n:'Tortillachips',c:489,p:7,k:64,v:24},{n:'Popcorn gezouten',c:375,p:11,k:74,v:5},{n:'Popcorn karamel',c:420,p:5,k:80,v:10},{n:'Stroopwafel',c:453,p:4,k:72,v:18},{n:'Roomboterkoek',c:450,p:5,k:65,v:20},{n:'Speculaas',c:480,p:7,k:70,v:20},{n:'Biscuit',c:466,p:8,k:73,v:16},{n:'Puur chocolade 70%',c:598,p:8,k:46,v:43},{n:'Melkchocolade',c:535,p:8,k:59,v:30},{n:'Witte chocolade',c:539,p:6,k:59,v:32},{n:'KitKat',c:507,p:7,k:61,v:26},{n:'Snickers',c:488,p:8,k:57,v:25},{n:'Mars reep',c:449,p:4,k:69,v:18},{n:'Twix',c:495,p:5,k:63,v:24},{n:'Haribo snoep',c:340,p:6,k:77,v:0},{n:'M&Ms',c:500,p:5,k:67,v:22},{n:'Drop',c:320,p:4,k:77,v:1},
+  // === BROODBELEG ===
+  {n:'Appelstroop',c:278,p:1,k:68,v:0},{n:'Nutella',c:539,p:6,k:58,v:31},{n:'Hagelslag melk',c:512,p:6,k:68,v:26},{n:'Hagelslag puur',c:498,p:7,k:60,v:29},{n:'Vruchtenjam',c:250,p:0,k:62,v:0},{n:'Honing',c:304,p:0,k:82,v:0},{n:'Kipfilet beleg',c:110,p:22,k:1,v:2},{n:'Cervelaat',c:320,p:15,k:1,v:28},{n:'Leverpastei',c:310,p:13,k:4,v:27},{n:'Tonijnsalade',c:210,p:16,k:3,v:15},{n:'Eiersalade',c:260,p:12,k:4,v:22},
+  // === FAST FOOD ===
+  {n:'Doner kebab',c:265,p:15,k:25,v:11},{n:'Doner wrap',c:310,p:18,k:32,v:13},{n:'Pizza Margherita',c:250,p:11,k:33,v:8},{n:'Pizza Pepperoni',c:290,p:13,k:33,v:13},{n:'Hamburger',c:295,p:17,k:24,v:14},{n:'Cheeseburger',c:330,p:19,k:26,v:17},{n:'Big Mac (100g)',c:257,p:13,k:25,v:11},{n:'Friet gebakken',c:312,p:3,k:41,v:15},{n:'Friet oven',c:163,p:3,k:29,v:4},{n:'Shawarma',c:278,p:16,k:20,v:14},{n:'Kapsalon',c:220,p:11,k:22,v:10},{n:'Shoarma broodje',c:290,p:15,k:30,v:12},{n:'Loempia',c:200,p:6,k:22,v:9},{n:'Sushi nigiri',c:40,p:2,k:7,v:0},{n:'Sushi maki rol',c:180,p:7,k:34,v:2},{n:'Ramen',c:180,p:10,k:25,v:5},{n:'Nasi goreng',c:175,p:8,k:24,v:6},{n:'Bami goreng',c:165,p:7,k:22,v:5},{n:'Nachos met kaas',c:310,p:8,k:35,v:15},{n:'Hotdog',c:290,p:11,k:22,v:18},{n:'Kipschnitzel broodje',c:340,p:22,k:35,v:11},{n:'Tosti kaas',c:280,p:12,k:32,v:12},{n:'Tosti kaas ham',c:300,p:14,k:32,v:13},
+  // === SAUZEN ===
+  {n:'Mayonaise',c:680,p:1,k:1,v:75},{n:'Halvomaise',c:360,p:1,k:6,v:36},{n:'Ketchup',c:112,p:1,k:28,v:0},{n:'Mosterd',c:66,p:4,k:6,v:4},{n:'Sambal',c:47,p:2,k:9,v:1},{n:'Sriracha',c:93,p:3,k:18,v:1},{n:'Tartaarsaus',c:450,p:2,k:10,v:44},{n:'Olijfolie',c:884,p:0,k:0,v:100},{n:'Zonnebloemolie',c:884,p:0,k:0,v:100},{n:'Kokosolie',c:892,p:0,k:0,v:100},{n:'Sojasaus',c:53,p:8,k:5,v:0},{n:'Hoisinsaus',c:220,p:4,k:40,v:5},{n:'Teriyakisaus',c:89,p:5,k:18,v:0},{n:'Pesto',c:393,p:6,k:5,v:40},{n:'Hummus',c:177,p:8,k:14,v:11},{n:'Guacamole',c:155,p:2,k:9,v:13},{n:'Tzatziki',c:95,p:6,k:3,v:7},{n:'Satesaus',c:280,p:9,k:16,v:21},{n:'Zoete chilisaus',c:136,p:0,k:32,v:0},
+  // === SOEPEN ===
+  {n:'Tomatensoep',c:55,p:2,k:9,v:1},{n:'Kippensoep',c:40,p:4,k:4,v:1},{n:'Groentesoep',c:35,p:2,k:6,v:0},{n:'Linzensoep',c:80,p:6,k:12,v:1},{n:'Erwtensoep',c:90,p:6,k:13,v:2},{n:'Minestrone',c:60,p:3,k:9,v:1},{n:'Misoshiro',c:40,p:3,k:5,v:1},
+  // === MAALTIJDEN ===
+  {n:'Lasagne',c:160,p:10,k:17,v:6},{n:'Spaghetti bolognese',c:150,p:10,k:18,v:5},{n:'Boerenkool stamppot',c:130,p:5,k:20,v:4},{n:'Hutspot',c:120,p:4,k:18,v:3},{n:'Rijst met kip',c:145,p:14,k:16,v:4},{n:'Kippenkerrie',c:155,p:12,k:12,v:6},{n:'Chili con carne',c:145,p:11,k:15,v:5},{n:'Omelet met groenten',c:130,p:10,k:4,v:9},{n:'Pannenkoek',c:197,p:5,k:28,v:8},{n:'Uitsmijter',c:205,p:14,k:12,v:12},{n:'Broodje kroket',c:310,p:10,k:40,v:12},
+  // === DRANKEN ===
+  {n:'Water',c:0,p:0,k:0,v:0},{n:'Sinaasappelsap',c:45,p:1,k:10,v:0},{n:'Appelsap',c:46,p:0,k:11,v:0},{n:'Cola',c:37,p:0,k:10,v:0},{n:'Cola Zero',c:0,p:0,k:0,v:0},{n:'Fanta',c:44,p:0,k:11,v:0},{n:'Sprite',c:41,p:0,k:10,v:0},{n:'Ice tea',c:39,p:0,k:10,v:0},{n:'Energy drink',c:45,p:0,k:11,v:0},{n:'Koffie zwart',c:2,p:0,k:0,v:0},{n:'Koffie met melk',c:30,p:2,k:3,v:1},{n:'Latte macchiato',c:60,p:3,k:8,v:2},{n:'Cappuccino',c:50,p:3,k:6,v:2},{n:'Thee',c:1,p:0,k:0,v:0},{n:'Chocolademelk',c:83,p:3,k:13,v:2},{n:'Bier',c:43,p:0,k:3,v:0},{n:'Bier 0.0%',c:20,p:0,k:5,v:0},{n:'Rode wijn',c:85,p:0,k:3,v:0},{n:'Witte wijn',c:82,p:0,k:3,v:0},{n:'Smoothie fruit',c:70,p:1,k:17,v:0},{n:'Proteïneshake (melk)',c:130,p:25,k:6,v:2},{n:'Proteïneshake (water)',c:110,p:25,k:3,v:1},
+  // === TURKS & MAROKKAANS ===
+  {n:'Lahmacun',c:270,p:12,k:32,v:10},{n:'Pide (kaas)',c:290,p:12,k:38,v:10},{n:'Kofte',c:258,p:20,k:5,v:18},{n:'Adana kebab',c:240,p:22,k:3,v:16},{n:'Iskender kebab',c:220,p:18,k:8,v:13},{n:'Borek (kaas)',c:350,p:10,k:32,v:20},{n:'Baklava',c:428,p:6,k:50,v:23},{n:'Dolma',c:180,p:4,k:20,v:9},{n:'Cacik',c:75,p:4,k:5,v:4},{n:'Linzensoep Turks',c:95,p:5,k:15,v:2},{n:'Ayran',c:36,p:2,k:4,v:1},{n:'Falafel',c:333,p:13,k:32,v:18},{n:'Tabouleh',c:140,p:4,k:19,v:6},{n:'Tajine kip',c:175,p:16,k:8,v:9},{n:'Tajine lam',c:210,p:17,k:7,v:13},{n:'Merguez',c:370,p:19,k:1,v:32},{n:'Couscous royale',c:175,p:12,k:20,v:5},{n:'Msemen',c:320,p:8,k:48,v:12},
+  // === SPORT & PROTEÏNE ===
+  {n:'Whey proteïne',c:120,p:25,k:3,v:2},{n:'Caseine proteïne',c:118,p:24,k:4,v:1},{n:'Plant proteïne',c:115,p:22,k:5,v:2},{n:'Proteïnereep',c:200,p:20,k:20,v:7},{n:'Eiwitbrood',c:215,p:18,k:22,v:5},{n:'Proteïnepudding',c:100,p:15,k:7,v:2},{n:'Eiwitpasta',c:145,p:22,k:14,v:2},
+  // === SUPERMARKT ===
+  {n:'AH Kipfilet naturel',c:110,p:24,k:0,v:2},{n:'AH Gehakt half om half',c:250,p:22,k:0,v:18},{n:'AH Skyr naturel',c:63,p:11,k:4,v:0},{n:'Unox knakworst',c:290,p:11,k:1,v:26},{n:'Unox rookworst',c:295,p:14,k:1,v:26},{n:'Campina kwark mager',c:67,p:11,k:4,v:0},{n:'Optimel kwark',c:55,p:8,k:5,v:0},{n:'Vifit proteïne drink',c:80,p:12,k:6,v:1},{n:'Kinder Bueno',c:555,p:7,k:57,v:33},{n:'Liga koek',c:402,p:8,k:65,v:13},{n:'Sultana rozijnenkoek',c:373,p:6,k:71,v:7},{n:'Belvita ontbijtkoek',c:428,p:8,k:69,v:13},
+];
+
+
+// Activities that use distance in calorie calculation
+const DISTANCE_ACTIVITIES = new Set([
+  'walking','wandelen','hardlopen','running','jogging','fietsen','cycling','zwemmen','swimming',
+  'hiking','hiken','nordic','roeien','rowing','kayak','schaatsen','skating','langlaufen',
+  'cross-country','skien','skiing'
+]);
+
+function activityUsesDistance(name){
+  const nl=name.toLowerCase();
+  return Array.from(DISTANCE_ACTIVITIES).some(k=>nl.includes(k));
+}
+
+// ===== 300+ ACTIVITIES =====
+const ACTIVITIES = [
+  // WANDELEN
+  {n:'Wandelen (2km/h)',e:'Walking very slow (2km/h)',i:'🚶',m:2.0,cat:'Wandelen',dist:true},
+  {n:'Wandelen (3km/h)',e:'Walking slow (3km/h)',i:'🚶',m:2.5,cat:'Wandelen',dist:true},
+  {n:'Wandelen (4km/h)',e:'Walking (4km/h)',i:'🚶',m:3.0,cat:'Wandelen',dist:true},
+  {n:'Wandelen (5km/h)',e:'Walking normal (5km/h)',i:'🚶',m:3.5,cat:'Wandelen',dist:true},
+  {n:'Stevig wandelen (6km/h)',e:'Brisk walking (6km/h)',i:'🚶',m:4.3,cat:'Wandelen',dist:true},
+  {n:'Wandelen (7km/h)',e:'Walking fast (7km/h)',i:'🚶',m:5.0,cat:'Wandelen',dist:true},
+  {n:'Nordic walking',e:'Nordic walking',i:'🚶',m:5.5,cat:'Wandelen',dist:true},
+  {n:'Hiken (vlak)',e:'Hiking flat',i:'🥾',m:6.0,cat:'Wandelen',dist:true},
+  {n:'Hiken (heuvelachtig)',e:'Hiking uphill',i:'🥾',m:7.5,cat:'Wandelen',dist:true},
+  {n:'Trap oplopen',e:'Stair climbing',i:'🪜',m:8.0,cat:'Wandelen',dist:false},
+  // HARDLOPEN
+  {n:'Joggen (7km/h)',e:'Jogging (7km/h)',i:'🏃',m:7.0,cat:'Hardlopen',dist:true},
+  {n:'Hardlopen (8km/h)',e:'Running (8km/h)',i:'🏃',m:8.3,cat:'Hardlopen',dist:true},
+  {n:'Hardlopen (9km/h)',e:'Running (9km/h)',i:'🏃',m:9.0,cat:'Hardlopen',dist:true},
+  {n:'Hardlopen (10km/h)',e:'Running (10km/h)',i:'🏃',m:9.8,cat:'Hardlopen',dist:true},
+  {n:'Hardlopen (11km/h)',e:'Running (11km/h)',i:'🏃',m:10.5,cat:'Hardlopen',dist:true},
+  {n:'Hardlopen (12km/h)',e:'Running (12km/h)',i:'🏃',m:11.5,cat:'Hardlopen',dist:true},
+  {n:'Hardlopen (13km/h)',e:'Running (13km/h)',i:'🏃',m:12.5,cat:'Hardlopen',dist:true},
+  {n:'Hardlopen (14km/h)',e:'Running (14km/h)',i:'🏃',m:13.5,cat:'Hardlopen',dist:true},
+  {n:'Hardlopen (16km/h)',e:'Running (16km/h)',i:'🏃',m:15.0,cat:'Hardlopen',dist:true},
+  {n:'Hardlopen (18km/h)',e:'Running fast (18km/h)',i:'🏃',m:16.5,cat:'Hardlopen',dist:true},
+  {n:'Sprinten',e:'Sprinting',i:'💨',m:19.0,cat:'Hardlopen',dist:true},
+  {n:'Trail running',e:'Trail running',i:'🏔️',m:10.0,cat:'Hardlopen',dist:true},
+  {n:'Marathon tempo',e:'Marathon pace',i:'🏅',m:11.0,cat:'Hardlopen',dist:true},
+  // FIETSEN
+  {n:'Fietsen (10km/h)',e:'Cycling (10km/h)',i:'🚴',m:4.0,cat:'Fietsen',dist:true},
+  {n:'Fietsen (12km/h)',e:'Cycling (12km/h)',i:'🚴',m:4.6,cat:'Fietsen',dist:true},
+  {n:'Fietsen (14km/h)',e:'Cycling (14km/h)',i:'🚴',m:5.2,cat:'Fietsen',dist:true},
+  {n:'Fietsen (16km/h)',e:'Cycling (16km/h)',i:'🚴',m:5.8,cat:'Fietsen',dist:true},
+  {n:'Fietsen (18km/h)',e:'Cycling (18km/h)',i:'🚴',m:6.4,cat:'Fietsen',dist:true},
+  {n:'Fietsen (20km/h)',e:'Cycling (20km/h)',i:'🚴',m:7.0,cat:'Fietsen',dist:true},
+  {n:'Fietsen (22km/h)',e:'Cycling (22km/h)',i:'🚴',m:7.6,cat:'Fietsen',dist:true},
+  {n:'Fietsen (24km/h)',e:'Cycling (24km/h)',i:'🚴',m:8.2,cat:'Fietsen',dist:true},
+  {n:'Fietsen (26km/h)',e:'Cycling (26km/h)',i:'🚴',m:8.8,cat:'Fietsen',dist:true},
+  {n:'Fietsen (28km/h)',e:'Cycling (28km/h)',i:'🚴',m:9.4,cat:'Fietsen',dist:true},
+  {n:'Fietsen (30km/h)',e:'Cycling (30km/h)',i:'🚴',m:10.0,cat:'Fietsen',dist:true},
+  {n:'Wielrennen (racing)',e:'Road cycling (racing)',i:'🏆',m:12.0,cat:'Fietsen',dist:true},
+  {n:'MTB (mountainbike)',e:'Mountain biking',i:'🚵',m:8.5,cat:'Fietsen',dist:true},
+  {n:'E-bike (licht)',e:'E-bike (light)',i:'⚡',m:3.5,cat:'Fietsen',dist:true},
+  {n:'Spinning / indoor cycling',e:'Spinning / indoor cycling',i:'🚴',m:8.0,cat:'Fietsen',dist:false},
+  // ZWEMMEN
+  {n:'Zwemmen (rustig)',e:'Swimming leisure',i:'🏊',m:6.0,cat:'Zwemmen',dist:true},
+  {n:'Zwemmen (langzame banen)',e:'Swimming slow laps',i:'🏊',m:7.0,cat:'Zwemmen',dist:true},
+  {n:'Zwemmen (matige banen)',e:'Swimming moderate laps',i:'🏊',m:8.0,cat:'Zwemmen',dist:true},
+  {n:'Zwemmen (snelle banen)',e:'Swimming fast laps',i:'🏊',m:10.0,cat:'Zwemmen',dist:true},
+  {n:'Schoolslag',e:'Breaststroke',i:'🏊',m:5.3,cat:'Zwemmen',dist:true},
+  {n:'Crawl (vrije slag)',e:'Freestyle / crawl',i:'🏊',m:9.0,cat:'Zwemmen',dist:true},
+  {n:'Rugslag',e:'Backstroke',i:'🏊',m:7.5,cat:'Zwemmen',dist:true},
+  {n:'Vlinderslag',e:'Butterfly stroke',i:'🏊',m:13.0,cat:'Zwemmen',dist:true},
+  {n:'Waterpolo',e:'Water polo',i:'🤽',m:8.0,cat:'Zwemmen',dist:false},
+  // FITNESS & GYM
+  {n:'Krachttraining (licht)',e:'Light weight lifting',i:'🏋️',m:3.5,cat:'Fitness',dist:false},
+  {n:'Krachttraining (matig)',e:'Moderate weight lifting',i:'🏋️',m:5.0,cat:'Fitness',dist:false},
+  {n:'Krachttraining (zwaar)',e:'Heavy weight lifting',i:'🏋️',m:6.0,cat:'Fitness',dist:false},
+  {n:'Gym (algemeen)',e:'Gym general workout',i:'💪',m:5.5,cat:'Fitness',dist:false},
+  {n:'CrossFit',e:'CrossFit',i:'🔥',m:9.0,cat:'Fitness',dist:false},
+  {n:'HIIT training',e:'HIIT training',i:'⚡',m:10.0,cat:'Fitness',dist:false},
+  {n:'Circuit training',e:'Circuit training',i:'🔄',m:7.0,cat:'Fitness',dist:false},
+  {n:'Bootcamp',e:'Bootcamp',i:'🪖',m:8.5,cat:'Fitness',dist:false},
+  {n:'Bodyweight training',e:'Bodyweight training',i:'🤸',m:6.5,cat:'Fitness',dist:false},
+  {n:'Calisthenics',e:'Calisthenics',i:'💪',m:7.0,cat:'Fitness',dist:false},
+  {n:'Touw springen',e:'Jump rope',i:'🪢',m:10.0,cat:'Fitness',dist:false},
+  {n:'Aerobics',e:'Aerobics',i:'🤸',m:6.5,cat:'Fitness',dist:false},
+  {n:'Step aerobics',e:'Step aerobics',i:'🤸',m:7.5,cat:'Fitness',dist:false},
+  {n:'Roeimachine',e:'Rowing machine',i:'🚣',m:7.0,cat:'Fitness',dist:false},
+  {n:'Crosstrainer (elliptical)',e:'Elliptical trainer',i:'🏃',m:6.0,cat:'Fitness',dist:false},
+  {n:'Loopband',e:'Treadmill walking',i:'🏃',m:5.0,cat:'Fitness',dist:false},
+  {n:'Stepper',e:'Stair stepper',i:'🪜',m:7.0,cat:'Fitness',dist:false},
+  {n:'Stretching',e:'Stretching',i:'🧘',m:2.3,cat:'Fitness',dist:false},
+  {n:'Schuimrollen (foam rolling)',e:'Foam rolling',i:'🧘',m:2.0,cat:'Fitness',dist:false},
+  // YOGA & MIND-BODY
+  {n:'Yoga (rustgevend)',e:'Yoga (restorative)',i:'🧘',m:2.0,cat:'Yoga',dist:false},
+  {n:'Yoga (hatha)',e:'Hatha yoga',i:'🧘',m:2.8,cat:'Yoga',dist:false},
+  {n:'Yoga (vinyasa)',e:'Vinyasa yoga',i:'🧘',m:4.0,cat:'Yoga',dist:false},
+  {n:'Hot yoga / Bikram',e:'Hot yoga / Bikram',i:'🔥',m:5.0,cat:'Yoga',dist:false},
+  {n:'Power yoga',e:'Power yoga',i:'💪',m:5.5,cat:'Yoga',dist:false},
+  {n:'Pilates (mat)',e:'Pilates (mat)',i:'🧘',m:3.0,cat:'Yoga',dist:false},
+  {n:'Pilates (reformer)',e:'Pilates (reformer)',i:'🧘',m:4.0,cat:'Yoga',dist:false},
+  {n:'Tai chi',e:'Tai chi',i:'☯️',m:2.8,cat:'Yoga',dist:false},
+  {n:'Meditatie',e:'Meditation',i:'🧠',m:1.3,cat:'Yoga',dist:false},
+  // VECHTSPORTEN
+  {n:'Boksen (sparring)',e:'Boxing (sparring)',i:'🥊',m:9.0,cat:'Vechtsporten',dist:false},
+  {n:'Boksen (bag/pads)',e:'Boxing (bag/pads)',i:'🥊',m:8.0,cat:'Vechtsporten',dist:false},
+  {n:'Kickboksen',e:'Kickboxing',i:'🥋',m:10.0,cat:'Vechtsporten',dist:false},
+  {n:'Thai boksen (Muay Thai)',e:'Muay Thai',i:'🥊',m:10.5,cat:'Vechtsporten',dist:false},
+  {n:'MMA training',e:'MMA training',i:'🥋',m:10.0,cat:'Vechtsporten',dist:false},
+  {n:'Judo',e:'Judo',i:'🥋',m:7.3,cat:'Vechtsporten',dist:false},
+  {n:'Karate',e:'Karate',i:'🥋',m:7.5,cat:'Vechtsporten',dist:false},
+  {n:'Taekwondo',e:'Taekwondo',i:'🥋',m:8.0,cat:'Vechtsporten',dist:false},
+  {n:'Worstelen',e:'Wrestling',i:'🤼',m:7.0,cat:'Vechtsporten',dist:false},
+  {n:'BJJ (Braziliaans jiu-jitsu)',e:'Brazilian jiu-jitsu',i:'🥋',m:8.5,cat:'Vechtsporten',dist:false},
+  {n:'Krav Maga',e:'Krav Maga',i:'💥',m:9.5,cat:'Vechtsporten',dist:false},
+  {n:'Wing Chun',e:'Wing Chun',i:'🥋',m:6.5,cat:'Vechtsporten',dist:false},
+  // TEAMSPORTEN
+  {n:'Voetbal (wedstrijd)',e:'Football/Soccer (match)',i:'⚽',m:9.0,cat:'Teamsport',dist:false},
+  {n:'Voetbal (recreatief)',e:'Football/Soccer (casual)',i:'⚽',m:7.0,cat:'Teamsport',dist:false},
+  {n:'Basketbal',e:'Basketball',i:'🏀',m:6.5,cat:'Teamsport',dist:false},
+  {n:'Volleybal',e:'Volleyball',i:'🏐',m:4.0,cat:'Teamsport',dist:false},
+  {n:'Beachvolleybal',e:'Beach volleyball',i:'🏖️',m:6.0,cat:'Teamsport',dist:false},
+  {n:'Handbal',e:'Handball',i:'🤾',m:8.0,cat:'Teamsport',dist:false},
+  {n:'Hockey (veld)',e:'Field hockey',i:'🏑',m:7.5,cat:'Teamsport',dist:false},
+  {n:'Rugby',e:'Rugby',i:'🏉',m:8.0,cat:'Teamsport',dist:false},
+  {n:'Honkbal',e:'Baseball',i:'⚾',m:5.0,cat:'Teamsport',dist:false},
+  {n:'Softbal',e:'Softball',i:'🥎',m:4.5,cat:'Teamsport',dist:false},
+  {n:'Korfbal',e:'Korfball',i:'🏀',m:7.5,cat:'Teamsport',dist:false},
+  {n:'Waterpolo',e:'Water polo',i:'🤽',m:8.0,cat:'Teamsport',dist:false},
+  {n:'Lacrosse',e:'Lacrosse',i:'🥍',m:8.0,cat:'Teamsport',dist:false},
+  // RACKETSPORTEN
+  {n:'Tennis (enkel)',e:'Tennis singles',i:'🎾',m:7.3,cat:'Racketsporten',dist:false},
+  {n:'Tennis (dubbel)',e:'Tennis doubles',i:'🎾',m:6.0,cat:'Racketsporten',dist:false},
+  {n:'Badminton',e:'Badminton',i:'🏸',m:5.5,cat:'Racketsporten',dist:false},
+  {n:'Badminton (competitief)',e:'Badminton competitive',i:'🏸',m:7.0,cat:'Racketsporten',dist:false},
+  {n:'Squash',e:'Squash',i:'🎾',m:12.0,cat:'Racketsporten',dist:false},
+  {n:'Padel',e:'Padel',i:'🎾',m:6.5,cat:'Racketsporten',dist:false},
+  {n:'Tafeltennis',e:'Table tennis',i:'🏓',m:4.5,cat:'Racketsporten',dist:false},
+  {n:'Pickleball',e:'Pickleball',i:'🎾',m:5.0,cat:'Racketsporten',dist:false},
+  // DANS
+  {n:'Zumba',e:'Zumba',i:'💃',m:6.0,cat:'Dans',dist:false},
+  {n:'Hiphop dansen',e:'Hip-hop dance',i:'🎤',m:6.5,cat:'Dans',dist:false},
+  {n:'Dansen (algemeen)',e:'Dancing (general)',i:'🕺',m:4.8,cat:'Dans',dist:false},
+  {n:'Ballet',e:'Ballet',i:'🩰',m:5.5,cat:'Dans',dist:false},
+  {n:'Salsa / Latin',e:'Salsa / Latin dance',i:'💃',m:5.5,cat:'Dans',dist:false},
+  {n:'Breakdance',e:'Breakdance',i:'🎤',m:7.0,cat:'Dans',dist:false},
+  {n:'Streetdance',e:'Streetdance',i:'🎶',m:6.0,cat:'Dans',dist:false},
+  {n:'Jive / Swing',e:'Jive / Swing',i:'🎵',m:5.0,cat:'Dans',dist:false},
+  // WINTERSPORTEN
+  {n:'Schaatsen (ijs)',e:'Ice skating',i:'⛸️',m:7.0,cat:'Wintersporten',dist:true},
+  {n:'Rolschaatsen',e:'Roller skating',i:'🛼',m:7.5,cat:'Wintersporten',dist:true},
+  {n:'Skiën (piste)',e:'Downhill skiing',i:'⛷️',m:6.8,cat:'Wintersporten',dist:false},
+  {n:'Snowboarden',e:'Snowboarding',i:'🏂',m:5.3,cat:'Wintersporten',dist:false},
+  {n:'Langlaufen',e:'Cross-country skiing',i:'⛷️',m:9.0,cat:'Wintersporten',dist:true},
+  {n:'Langlaufen (intensief)',e:'Cross-country skiing intense',i:'⛷️',m:12.0,cat:'Wintersporten',dist:true},
+  {n:'Ijshockey',e:'Ice hockey',i:'🏒',m:8.0,cat:'Wintersporten',dist:false},
+  {n:'Curling',e:'Curling',i:'🥌',m:3.5,cat:'Wintersporten',dist:false},
+  // WATERSPORT
+  {n:'Roeien (water)',e:'Rowing (water)',i:'🚣',m:6.0,cat:'Watersport',dist:true},
+  {n:'Roeien (intensief)',e:'Rowing intense',i:'🚣',m:8.5,cat:'Watersport',dist:true},
+  {n:'Kayakken',e:'Kayaking',i:'🛶',m:5.0,cat:'Watersport',dist:true},
+  {n:'Kanoën',e:'Canoeing',i:'🛶',m:4.0,cat:'Watersport',dist:true},
+  {n:'Stand-up paddleboarden',e:'Stand-up paddleboarding',i:'🏄',m:4.8,cat:'Watersport',dist:true},
+  {n:'Surfen',e:'Surfing',i:'🏄',m:6.0,cat:'Watersport',dist:false},
+  {n:'Kitesurfen',e:'Kitesurfing',i:'🪁',m:7.0,cat:'Watersport',dist:false},
+  {n:'Wakeboarden',e:'Wakeboarding',i:'🏄',m:6.5,cat:'Watersport',dist:false},
+  {n:'Duiken',e:'Scuba diving',i:'🤿',m:5.5,cat:'Watersport',dist:false},
+  {n:'Snorkelen',e:'Snorkeling',i:'🤿',m:4.5,cat:'Watersport',dist:false},
+  // ANDERE SPORTEN
+  {n:'Golf (lopen)',e:'Golf (walking)',i:'⛳',m:4.8,cat:'Sport',dist:false},
+  {n:'Golf (karretje)',e:'Golf (cart)',i:'⛳',m:3.0,cat:'Sport',dist:false},
+  {n:'Klimmen (binnenmuur)',e:'Rock climbing (indoor)',i:'🧗',m:7.0,cat:'Sport',dist:false},
+  {n:'Klimmen (buiten)',e:'Rock climbing (outdoor)',i:'🧗',m:8.5,cat:'Sport',dist:false},
+  {n:'Skateboarden',e:'Skateboarding',i:'🛹',m:5.0,cat:'Sport',dist:false},
+  {n:'Longboarden',e:'Longboarding',i:'🛹',m:4.5,cat:'Sport',dist:false},
+  {n:'Paardrijden',e:'Horse riding',i:'🏇',m:5.5,cat:'Sport',dist:false},
+  {n:'Boogschieten',e:'Archery',i:'🏹',m:3.5,cat:'Sport',dist:false},
+  {n:'Turnen',e:'Gymnastics',i:'🤸',m:5.5,cat:'Sport',dist:false},
+  {n:'Trampolinespringen',e:'Trampoline',i:'🤸',m:7.0,cat:'Sport',dist:false},
+  {n:'Frisbee (ultimate)',e:'Ultimate frisbee',i:'🥏',m:7.5,cat:'Sport',dist:false},
+  {n:'Bowlen',e:'Bowling',i:'🎳',m:3.0,cat:'Sport',dist:false},
+  {n:'Darten',e:'Darts',i:'🎯',m:2.5,cat:'Sport',dist:false},
+  {n:'Biljarten',e:'Pool / Billiards',i:'🎱',m:2.5,cat:'Sport',dist:false},
+  {n:'Schaken',e:'Chess',i:'♟️',m:1.5,cat:'Sport',dist:false},
+  {n:'Touwklimmen',e:'Rope climbing',i:'🧗',m:8.0,cat:'Sport',dist:false},
+  {n:'Parkour',e:'Parkour',i:'🏃',m:9.0,cat:'Sport',dist:false},
+  {n:'Triathlon (matig)',e:'Triathlon (moderate)',i:'🏅',m:9.5,cat:'Sport',dist:false},
+  {n:'Zwemmen (open water)',e:'Open water swimming',i:'🌊',m:8.0,cat:'Zwemmen',dist:true},
+  {n:'Atletiek (sprint)',e:'Track sprinting',i:'🏅',m:12.0,cat:'Hardlopen',dist:false},
+  {n:'Polsstokhoogspringen',e:'Pole vault',i:'🏅',m:6.5,cat:'Sport',dist:false},
+  {n:'Discuswerpen',e:'Discus throw',i:'🥏',m:4.5,cat:'Sport',dist:false},
+  {n:'Kogelstoten',e:'Shot put',i:'⚫',m:4.0,cat:'Sport',dist:false},
+  {n:'Gewichtheffen (olympisch)',e:'Olympic weightlifting',i:'🏋️',m:7.5,cat:'Fitness',dist:false},
+  {n:'Powerlifting',e:'Powerlifting',i:'🏋️',m:6.0,cat:'Fitness',dist:false},
+  {n:'Crossfit (competitief)',e:'CrossFit competitive',i:'🔥',m:12.0,cat:'Fitness',dist:false},
+  // DAGELIJKS LEVEN
+  {n:'Tuinieren (licht)',e:'Gardening light',i:'🌱',m:3.5,cat:'Dagelijks',dist:false},
+  {n:'Tuinieren (zwaar)',e:'Gardening heavy',i:'🌱',m:5.5,cat:'Dagelijks',dist:false},
+  {n:'Huishouden',e:'Housework',i:'🧹',m:2.5,cat:'Dagelijks',dist:false},
+  {n:'Stofzuigen',e:'Vacuuming',i:'🧹',m:3.3,cat:'Dagelijks',dist:false},
+  {n:'Koken',e:'Cooking',i:'👨‍🍳',m:2.5,cat:'Dagelijks',dist:false},
+  {n:'Afwassen',e:'Washing dishes',i:'🍽️',m:2.0,cat:'Dagelijks',dist:false},
+  {n:'Boodschappen sjouwen',e:'Carrying groceries',i:'🛒',m:3.5,cat:'Dagelijks',dist:false},
+  {n:'Verhuizen / meubels sjouwen',e:'Moving furniture',i:'📦',m:5.5,cat:'Dagelijks',dist:false},
+  {n:'Kantoorwerk (zittend)',e:'Office work (sitting)',i:'💼',m:1.3,cat:'Dagelijks',dist:false},
+  {n:'Staand werken',e:'Standing work',i:'🧍',m:1.8,cat:'Dagelijks',dist:false},
+  {n:'Lopen op het werk',e:'Walking at work',i:'🚶',m:2.5,cat:'Dagelijks',dist:false},
+  {n:'Zwaar lichamelijk werk',e:'Heavy physical work',i:'⚒️',m:6.0,cat:'Dagelijks',dist:false},
+  {n:'Houthakken',e:'Chopping wood',i:'🪓',m:5.5,cat:'Dagelijks',dist:false},
+  {n:'Sneeuw ruimen',e:'Shoveling snow',i:'❄️',m:6.0,cat:'Dagelijks',dist:false},
+  {n:'Grasmaaien (duwmaaier)',e:'Mowing lawn (push)',i:'🌿',m:5.0,cat:'Dagelijks',dist:false},
+  {n:'Winkelen / shoppen',e:'Shopping',i:'🛍️',m:2.5,cat:'Dagelijks',dist:false},
+  {n:'Babysit / spelen met kinderen',e:'Playing with children',i:'👶',m:3.5,cat:'Dagelijks',dist:false},
+  {n:'Hond uitlaten',e:'Walking the dog',i:'🐕',m:3.0,cat:'Dagelijks',dist:true},
+];
+
+// ===== AUTH =====
+function showAuthPage(id){
+  ['loginPage','registerPage','questPage'].forEach(p=>{
+    const el=document.getElementById(p);
+    if(el)el.style.display='none';
+  });
+  document.getElementById(id).style.display='flex';
+  document.getElementById('app').style.display='none';
+}
+
+async function doLogin(){
+  const email=document.getElementById('loginEmail').value.trim();
+  const pass=document.getElementById('loginPass').value;
+  if(!email||!pass){showNotif('❌ Vul alle velden in');return;}
+  const btn=document.querySelector('#loginPage .btn-primary');
+  btn.textContent=S.lang==='nl'?'Inloggen...':'Logging in...';btn.disabled=true;
+  try{
+    const fb=window._fb;
+    if(!fb||document.getElementById('fbConfig')?.dataset.configured==='false'){
+      // Fallback: localStorage login
+      const stored=localStorage.getItem('bt_user');
+      if(!stored){showNotif('❌ Geen account gevonden');btn.textContent='Inloggen';btn.disabled=false;return;}
+      const user=JSON.parse(stored);
+      if(user.email!==email){showNotif('❌ Email of wachtwoord onjuist');btn.textContent='Inloggen';btn.disabled=false;return;}
+      S.user=user;loadUserData();launchApp();return;
+    }
+    await fb.signInWithEmailAndPassword(fb.fbAuth,email,pass);
+    // onAuthStateChanged will handle the rest
+  }catch(e){
+    const msg=e.code==='auth/wrong-password'||e.code==='auth/invalid-credential'?'❌ Onjuist wachtwoord':
+              e.code==='auth/user-not-found'?'❌ Geen account gevonden':
+              e.code==='auth/invalid-email'?'❌ Ongeldig e-mailadres':'❌ Inloggen mislukt';
+    showNotif(msg);
+  }finally{btn.textContent=S.lang==='nl'?'Inloggen':'Log in';btn.disabled=false;}
+}
+
+async function doRegister(){
+  const name=document.getElementById('regName').value.trim();
+  const email=document.getElementById('regEmail').value.trim();
+  const pass=document.getElementById('regPass').value;
+  if(!name||!email||!pass){showNotif('❌ Vul alle velden in');return;}
+  if(pass.length<6){showNotif('❌ Wachtwoord min. 6 tekens');return;}
+  const btn=document.querySelector('#registerPage .btn-primary');
+  btn.textContent=S.lang==='nl'?'Account aanmaken...':'Creating account...';btn.disabled=true;
+  try{
+    const fb=window._fb;
+    if(fb){
+      const cred=await fb.createUserWithEmailAndPassword(fb.fbAuth,email,pass);
+      window._fbUser=cred.user;
+    }
+    S.user={name,email,uid:window._fbUser?.uid||null};
+    localStorage.setItem('bt_user',JSON.stringify(S.user));
+    showAuthPage('questPage');
+  }catch(e){
+    const msg=e.code==='auth/email-already-in-use'?'❌ E-mail al in gebruik':
+              e.code==='auth/invalid-email'?'❌ Ongeldig e-mailadres':
+              e.code==='auth/weak-password'?'❌ Wachtwoord te zwak':'❌ Registratie mislukt';
+    showNotif(msg);
+  }finally{btn.textContent=S.lang==='nl'?'Account aanmaken':'Create account';btn.disabled=false;}
+}
+
+// ===== QUESTIONNAIRE =====
+let qData={goal:null,actLevel:1.375};
+function selectGoal(el,goal){document.querySelectorAll('#step0 .goal-option').forEach(o=>o.classList.remove('selected'));el.classList.add('selected');qData.goal=goal;}
+function selectActivity(el,val){document.querySelectorAll('#step3 .goal-option').forEach(o=>o.classList.remove('selected'));el.classList.add('selected');qData.actLevel=val;}
+function nextStep(cur){
+  if(cur===0&&!qData.goal){showNotif('❌ Kies een doel');return;}
+  if(cur===1&&(!document.getElementById('qAge').value||!document.getElementById('qHeight').value)){showNotif('❌ Vul je gegevens in');return;}
+  if(cur===2&&(!document.getElementById('qWeight').value||!document.getElementById('qGoalWeight').value)){showNotif('❌ Vul je gewicht in');return;}
+  document.getElementById('step'+cur).classList.remove('active');
+  document.getElementById('step'+(cur+1)).classList.add('active');
+  document.getElementById('dot'+cur).classList.remove('active');
+  document.getElementById('dot'+cur).classList.add('done');
+  document.getElementById('dot'+(cur+1)).classList.add('active');
+}
+function finishQuest(){
+  if(!qData.actLevel){showNotif('❌ Kies activiteitsniveau');return;}
+  const age=parseInt(document.getElementById('qAge').value);
+  const height=parseInt(document.getElementById('qHeight').value);
+  const gender=document.getElementById('qGender').value;
+  const weight=parseFloat(document.getElementById('qWeight').value);
+  const goalWeight=parseFloat(document.getElementById('qGoalWeight').value);
+  let bmr=gender==='m'?10*weight+6.25*height-5*age+5:10*weight+6.25*height-5*age-161;
+  let tdee=Math.round(bmr*qData.actLevel);
+  if(qData.goal==='afvallen')tdee-=500;
+  if(qData.goal==='aankomen')tdee+=500;
+  S.user={...S.user,age,height,gender,weight,goalWeight,goal:qData.goal,actLevel:qData.actLevel,tdee};
+  S.weightLog=[{date:todayStr(),weight}];
+  saveData();
+  showWelcome();
+}
+
+// ===== WELCOME CONFETTI =====
+function showWelcome(){
+  const ws=document.getElementById('welcomeScreen');
+  ws.classList.add('show');
+  document.getElementById('welcomeName').textContent='Welkom, '+(S.user.name||'Baran')+'! 🎉';
+  document.getElementById('welcomeSub').textContent='Je BaranTrack account is klaar. Doel: '+(S.user.tdee||'—')+' kcal/dag';
+  spawnConfetti();
+}
+function hideWelcome(){
+  document.getElementById('welcomeScreen').classList.remove('show');
+  launchApp();
+}
+function spawnConfetti(){
+  const canvas=document.getElementById('confettiCanvas');
+  const colors=['#22c55e','#16a34a','#ffffff','#fbbf24','#60a5fa','#f472b6','#a78bfa'];
+  for(let i=0;i<80;i++){
+    const el=document.createElement('div');
+    el.className='confetti-piece';
+    el.style.cssText=`left:${Math.random()*100}vw;top:-20px;background:${colors[Math.floor(Math.random()*colors.length)]};width:${6+Math.random()*10}px;height:${6+Math.random()*10}px;border-radius:${Math.random()>0.5?'50%':'2px'};animation:confettiFall ${2+Math.random()*3}s ${Math.random()*2}s linear forwards;`;
+    document.getElementById('welcomeScreen').appendChild(el);
+    setTimeout(()=>el.remove(),(5000));
+  }
+}
+
+// ===== APP LAUNCH =====
+function launchApp(){
+  ['loginPage','registerPage','questPage'].forEach(p=>{
+    const el=document.getElementById(p);
+    if(el)el.style.display='none';
+  });
+  document.getElementById('authLangSwitcher').style.display='none';
+  document.getElementById('app').style.display='block';
+  updateProfileUI();
+  renderActivities('');
+  document.getElementById('actWeight').value=S.user.weight||75;
+  renderLogbook();
+  updateFoodSummary();
+  renderMeals();
+}
+
+function loadUserData(){
+  const d=localStorage.getItem('bt_data');
+  if(d){const p=JSON.parse(d);S.meals=p.meals||S.meals;S.activities=p.activities||[];S.weightLog=p.weightLog||[];S.calLog=p.calLog||{};S.macroLog=p.macroLog||{};}
+}
+async function saveData(){
+  if(S.user)localStorage.setItem('bt_user',JSON.stringify(S.user));
+  const dataObj={meals:S.meals,activities:S.activities,weightLog:S.weightLog,calLog:S.calLog,macroLog:S.macroLog};
+  localStorage.setItem('bt_data',JSON.stringify(dataObj));
+  // Also save to Firestore if logged in
+  const uid=window._fbUser?.uid||S.user?.uid;
+  const fb=window._fb;
+  if(uid&&fb){
+    try{
+      await fb.setDoc(fb.doc(fb.fbDb,'users',uid),{user:S.user,data:dataObj},{merge:true});
+    }catch(e){console.warn('Firestore save failed:',e.message);}
+  }
+}
+
+// ===== PROFILE =====
+function updateProfileUI(){
+  renderStreakBadge();initWeightInput();
+  const u=S.user;if(!u)return;
+  const initials=(u.name||'B').split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2);
+  document.getElementById('userAvatar').textContent=initials;
+  document.getElementById('heroName').textContent='Hey, '+(u.name||'Baran')+'! 👋';
+  const gm={afvallen:'📉 Doel: Afvallen',behouden:'⚖️ Doel: Behouden',aankomen:'📈 Doel: Aankomen'};
+  document.getElementById('heroGoal').textContent=gm[u.goal]||'🎯';
+  const curW=S.weightLog.length?S.weightLog[S.weightLog.length-1].weight:u.weight;
+  document.getElementById('heroWeight').textContent=curW?curW+' kg':'—';
+  document.getElementById('heroGoalW').textContent=u.goalWeight?u.goalWeight+' kg':'—';
+  if(u.weight&&u.height){const bmi=(u.weight/Math.pow(u.height/100,2)).toFixed(1);document.getElementById('heroBMI').textContent=bmi;}
+  document.getElementById('heroCals').textContent=u.tdee?u.tdee+' kcal':'—';
+  if(u.weight&&u.goalWeight){
+    document.getElementById('startWeightLbl').textContent=u.weight+' kg';
+    document.getElementById('goalWeightLbl').textContent=u.goalWeight+' kg';
+    const start=u.weight,goal=u.goalWeight,cur=curW;
+    let pct=start!==goal?Math.min(100,Math.max(0,Math.abs((start-cur)/(start-goal))*100)):100;
+    document.getElementById('weightProgressBar').style.width=pct+'%';
+    document.getElementById('logCurrentWeight').textContent=curW+' kg';
+  }
+  const todayCals=getTodayCals();const todayBurned=getTodayBurned();
+  document.getElementById('todayEaten').textContent=todayCals+' kcal';
+  document.getElementById('todayBurned').textContent=todayBurned+' kcal';
+  const rem=(u.tdee||2000)-todayCals+todayBurned;
+  document.getElementById('todayRemaining').textContent=rem+' kcal';
+}
+function getTodayCals(){return Object.values(S.meals).flat().reduce((s,f)=>s+(f.cal||0),0);}
+function getTodayBurned(){return S.activities.filter(a=>a.date===todayStr()).reduce((s,a)=>s+(a.burned||0),0);}
+
+function logWeight(){
+  const val=parseFloat(document.getElementById('newWeightInput').value);
+  if(!val||val<20||val>400){showNotif('❌ Voer geldig gewicht in');return;}
+  S.weightLog.push({date:todayStr(),weight:val});S.user.weight=val;
+  localStorage.setItem('bt_lastWeight',String(val));
+  saveData();updateProfileUI();renderLogbook();renderStreakBadge();
+  showNotif('✅ Gewicht opgeslagen!');
+  document.getElementById('newWeightInput').value=val;
+}
+
+// ===== FOOD SEARCH =====
+let searchT;
+function openFoodSearch(meal){
+  S.currentMeal=meal;S.selectedFood=null;
+  document.getElementById('foodSearchInput').value='';
+  document.getElementById('foodSearchResults').innerHTML='';
+  document.getElementById('portionSelect').classList.remove('visible');
+  document.getElementById('foodSearchModal').classList.add('open');
+  // Show popular items immediately
+  const _pop=['Ei (heel)','Banaan','Rijst (gekookt)','Havermout (droog)','Kipfilet (gegrild)','Volkoren brood','Witbrood','Griekse yoghurt 0%','Skyr','Kwark (mager)','Appel','Pasta (gekookt)','Tonijn (blik in water)','Zalm (vers)','Proteïneshake (melk)','Avocado','Pindakaas','Halfvolle melk','Aardappel','Zoete aardappel','Banaan','Sinaasappel','Blauwe bessen','Haverdrank'];
+  const _popItems=_pop.map(n=>FOODS.find(f=>f.n===n)).filter(Boolean);
+  window._searchResults=_popItems;
+  renderFoodResults(_popItems,true);
+  setTimeout(()=>document.getElementById('foodSearchInput').focus(),100);
+}
+
+function searchFood(q){
+  clearTimeout(searchT);
+  if(q.length<1){const _pop=['Ei (heel)','Banaan','Rijst (gekookt)','Havermout (droog)','Kipfilet (gegrild)','Volkoren brood','Witbrood','Griekse yoghurt 0%','Skyr','Kwark (mager)','Appel','Pasta (gekookt)','Tonijn (blik in water)','Zalm (vers)','Proteïneshake (melk)','Avocado','Pindakaas','Halfvolle melk','Aardappel','Zoete aardappel','Sinaasappel','Blauwe bessen','Haverdrank'];const _popItems=_pop.map(n=>FOODS.find(f=>f.n===n)).filter(Boolean);window._searchResults=_popItems;renderFoodResults(_popItems,true);return;}
+  searchT=setTimeout(async()=>{
+    const ql=q.toLowerCase();
+    // Local search first (instant)
+    const local=FOODS.filter(f=>f.n.toLowerCase().includes(ql)).slice(0,15);
+    window._searchResults=local;
+    renderFoodResults(local);
+    // Netlify Function proxy (fixes CORS)
+    const loadingEl=document.createElement('div');
+    loadingEl.id='offLoading';
+    loadingEl.style='padding:8px 16px;font-size:12px;color:var(--gray-400);font-style:italic';
+    loadingEl.textContent=S.lang==='nl'?'🔍 Open Food Facts zoeken...':'🔍 Searching Open Food Facts...';
+    document.getElementById('foodSearchResults').appendChild(loadingEl);
+    try{
+      const resp=await fetch(`/.netlify/functions/food-search?q=${encodeURIComponent(q)}`);
+      const data=await resp.json();
+      const api=(data.products||[]);
+      const combined=[...local,...api.filter(a=>!local.find(l=>l.n.toLowerCase()===a.n.toLowerCase()))];
+      window._searchResults=combined;
+      renderFoodResults(combined);
+    }catch(e){document.getElementById('offLoading')?.remove();}
+  },350);
+}
+
+function renderFoodResults(items,isPopular=false){
+  const el=document.getElementById('foodSearchResults');
+  if(!items.length){el.innerHTML='<div class="empty-state"><div class="empty-icon">🔍</div>'+(S.lang==='nl'?'Geen resultaten gevonden':'No results found')+'</div>';return;}
+  const hdr=isPopular?'<div style="font-size:11px;font-weight:700;color:var(--gray-400);padding:4px 12px 6px;letter-spacing:.5px">'+(S.lang==='nl'?'⭐ POPULAIR':'⭐ POPULAR')+'</div>':'';
+  el.innerHTML=hdr+items.map((f,i)=>`
+    <div class="search-result-item" onclick="selectFood(${i})">
+      <div><div class="result-name">${f.n}</div><div class="result-details">P:${f.p}g · K:${f.k}g · V:${f.v}g | per 100g</div></div>
+      <div class="result-cal">${f.c} kcal</div>
+    </div>`).join('');
+}
+
+function selectFood(i){
+  const food=window._searchResults[i];
+  S.selectedFood=food;
+  document.getElementById('portionFoodName').textContent=food.n;
+  document.getElementById('portionGrams').value=100;
+  updatePortionPreview();
+  document.getElementById('portionSelect').classList.add('visible');
+  document.querySelectorAll('.search-result-item').forEach((el,idx)=>{
+    el.style.borderColor=idx===i?'var(--green)':'';
+    el.style.background=idx===i?'var(--green-xlight)':'';
+  });
+}
+
+function updatePortionPreview(){
+  if(!S.selectedFood)return;
+  const g=parseFloat(document.getElementById('portionGrams').value)||100;
+  document.getElementById('portionCalPreview').textContent=Math.round(S.selectedFood.c*g/100)+' kcal';
+}
+
+function addFoodToMeal(){
+  const food=S.selectedFood;if(!food)return;
+  const g=parseFloat(document.getElementById('portionGrams').value)||100;
+  const r=g/100;
+  pushFoodItem({name:food.n,grams:g,cal:Math.round(food.c*r),protein:Math.round(food.p*r),carbs:Math.round(food.k*r),fat:Math.round(food.v*r)});
+}
+
+function addManualFood(){
+  const name=document.getElementById('manFoodName').value.trim();
+  const cal=parseFloat(document.getElementById('manFoodCal').value)||0;
+  const protein=parseFloat(document.getElementById('manFoodProtein').value)||0;
+  const carbs=parseFloat(document.getElementById('manFoodCarbs').value)||0;
+  const fat=parseFloat(document.getElementById('manFoodFat').value)||0;
+  const grams=parseFloat(document.getElementById('manFoodGrams').value)||100;
+  if(!name||!cal){showNotif('❌ Vul naam en calorieën in');return;}
+  const r=grams/100;
+  pushFoodItem({name,grams,cal:Math.round(cal*r),protein:Math.round(protein*r),carbs:Math.round(carbs*r),fat:Math.round(fat*r)});
+  // Clear fields
+  ['manFoodName','manFoodCal','manFoodProtein','manFoodCarbs','manFoodFat'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('manFoodGrams').value=100;
+}
+
+function pushFoodItem(item){
+  item.id=Date.now();
+  S.meals[S.currentMeal].push(item);
+  saveDayLog();renderMeals();updateFoodSummary();updateProfileUI();
+  closeModal('foodSearchModal');
+  showNotif('✅ '+item.name+' toegevoegd!');
+}
+
+function removeFood(meal,id){
+  S.meals[meal]=S.meals[meal].filter(f=>f.id!==id);
+  saveDayLog();renderMeals();updateFoodSummary();updateProfileUI();
+}
+
+function saveDayLog(){
+  const today=todayStr();
+  S.calLog[today]=getTodayCals();
+  const all=Object.values(S.meals).flat();
+  S.macroLog[today]={protein:all.reduce((s,f)=>s+(f.protein||0),0),carbs:all.reduce((s,f)=>s+(f.carbs||0),0),fat:all.reduce((s,f)=>s+(f.fat||0),0)};
+  saveData();
+  renderStreakBadge();
+}
+
+function renderMeals(){
+  ['ontbijt','lunch','tussendoortje','avondeten'].forEach(meal=>{
+    const items=S.meals[meal];
+    const total=items.reduce((s,f)=>s+f.cal,0);
+    document.getElementById('cals-'+meal).textContent=total+' kcal';
+    const icons={ontbijt:'🌅',lunch:'☀️',tussendoortje:'🍎',avondeten:'🌙'};
+    document.getElementById('items-'+meal).innerHTML=items.length===0
+      ?`<div class="empty-state"><div class="empty-icon">${icons[meal]}</div><span>Nog niets gelogd</span></div>`
+      :items.map(f=>`<div class="food-item"><div><div class="food-item-name">${f.name}</div><div style="font-size:12px;color:var(--gray-400)">${f.grams}g · P:${f.protein}g K:${f.carbs}g V:${f.fat}g</div></div><div class="food-item-right"><div class="food-item-cal">${f.cal} kcal</div><button class="food-item-del" onclick="removeFood('${meal}',${f.id})">✕</button></div></div>`).join('');
+  });
+}
+
+function updateFoodSummary(){
+  const total=getTodayCals();
+  const all=Object.values(S.meals).flat();
+  const protein=all.reduce((s,f)=>s+(f.protein||0),0);
+  const carbs=all.reduce((s,f)=>s+(f.carbs||0),0);
+  const fat=all.reduce((s,f)=>s+(f.fat||0),0);
+  const goal=S.user?.tdee||2000;
+  document.getElementById('ringEaten').textContent=total;
+  const pct=Math.min(1,total/goal);
+  document.getElementById('calRingProgress').style.strokeDashoffset=201-(pct*201);
+  document.getElementById('proteinVal').textContent=protein+'g';
+  document.getElementById('carbVal').textContent=carbs+'g';
+  document.getElementById('fatVal').textContent=fat+'g';
+  document.getElementById('proteinBar').style.width=Math.min(100,protein/150*100)+'%';
+  document.getElementById('carbBar').style.width=Math.min(100,carbs/300*100)+'%';
+  document.getElementById('fatBar').style.width=Math.min(100,fat/80*100)+'%';
+}
+
+// ===== BARCODE =====
+function openBarcodeModal(){document.getElementById('barcodeInput').value='';document.getElementById('barcodeResult').innerHTML='';document.getElementById('barcodeModal').classList.add('open');}
+async function lookupBarcode(code){
+  if(!code)code=document.getElementById('barcodeInput').value.trim();
+  if(!code)return;
+  const el=document.getElementById('barcodeResult');
+  el.innerHTML='<div style="text-align:center"><div class="spinner"></div></div>';
+  try{
+    const r=await fetch(`/.netlify/functions/barcode-lookup?code=${encodeURIComponent(code)}`);
+    const d=await r.json();
+    if(d.food){
+      const food=d.food;
+      // Display result
+      el.innerHTML=`<div style="background:var(--green-xlight);border-radius:10px;padding:16px">
+        ${food.img?`<img src="${food.img}" style="width:60px;height:60px;object-fit:contain;float:right;border-radius:8px">`:''}
+        <div style="font-weight:700;font-size:15px">${food.n}</div>
+        ${food.brand?`<div style="font-size:12px;color:var(--gray-400);margin-bottom:8px">${food.brand}</div>`:''}
+        <div style="font-size:13px;color:var(--gray-600)">🔥 ${food.c} kcal &nbsp;|&nbsp; P: ${food.p}g &nbsp;K: ${food.k}g &nbsp;V: ${food.v}g</div>
+        <div style="font-size:11px;color:var(--gray-400);margin-top:4px">per 100g</div>
+        <button class="btn-primary" style="width:100%;margin-top:12px" onclick="addBarcodeFood(${JSON.stringify(food).replace(/"/g,'&quot;')})">
+          + ${S.lang==='nl'?'Toevoegen':'Add'}
+        </button>
+      </div>`;
+      return;
+    }
+    el.innerHTML='<div style="color:var(--red);padding:12px">❌ '+(S.lang==='nl'?'Product niet gevonden':'Product not found')+'</div>';
+  }catch(e){el.innerHTML='<div style="color:var(--red);padding:12px">❌ '+(S.lang==='nl'?'Fout bij zoeken':'Search error')+'</div>';
+
+}
+function addPhotoFoods(items){
+  const meal=S.currentMeal||'lunch';
+  items.forEach(item=>{
+    const food={
+      n:item.name,
+      c:Math.round(item.per100g.calories*item.grams/100),
+      p:Math.round(item.per100g.protein*item.grams/100),
+      k:Math.round(item.per100g.carbs*item.grams/100),
+      v:Math.round(item.per100g.fat*item.grams/100),
+      g:item.grams,
+      src:'ai'
+    };
+    if(!S.meals[meal])S.meals[meal]=[];
+    S.meals[meal].push(food);
+  });
+  saveDayLog();renderMeals();updateDashboard();
+  document.getElementById('photoModal')?.classList.remove('open');
+  showNotif('✅ '+(S.lang==='nl'?`${items.length} items toegevoegd`:`${items.length} items added`));
+}
+
+function addBarcodeFood(food){
+  const g=parseFloat(document.getElementById('bcGrams')?.value)||100;
+  const r=g/100;
+  pushFoodItem({name:food.n,grams:g,cal:Math.round(food.c*r),protein:Math.round(food.p*r),carbs:Math.round(food.k*r),fat:Math.round(food.v*r)});
+  closeModal('barcodeModal');
+}
+
+// ===== PHOTO =====
+function openPhotoModal(){document.getElementById('photoResult').innerHTML='';document.getElementById('aiAnalyzing').style.display='none';document.getElementById('photoModal').classList.add('open');}
+async function analyzePhoto(input){
+  if(!input.files||!input.files[0])return;
+  const file=input.files[0];
+  const aiEl=document.getElementById('aiAnalyzing');
+  const resultEl=document.getElementById('photoResult');
+  aiEl.style.display='block';resultEl.innerHTML='';
+  try{
+    // Convert image to base64
+    const base64=await new Promise((res,rej)=>{
+      const r=new FileReader();
+      r.onload=()=>res(r.result.split(',')[1]);
+      r.onerror=rej;
+      r.readAsDataURL(file);
+    });
+    const resp=await fetch('/.netlify/functions/analyze-photo',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({imageBase64:base64,mimeType:file.type})
+    });
+    const data=await resp.json();
+    if(data.error){throw new Error(data.error);}
+    if(!data.items||data.items.length===0){
+      resultEl.innerHTML='<div style="text-align:center;padding:20px;color:var(--gray-400)">🤷 '+(S.lang==="nl"?"Geen eten herkend in de foto":"No food detected in the photo")+'</div>';
+      aiEl.style.display='none';return;
+    }
+    // Show results
+    const rows=data.items.map((item,i)=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--gray-100)">
+        <div>
+          <div style="font-weight:600">${item.name}</div>
+          <div style="font-size:12px;color:var(--gray-400)">${item.grams}g — P:${Math.round(item.per100g.protein*item.grams/100)}g K:${Math.round(item.per100g.carbs*item.grams/100)}g V:${Math.round(item.per100g.fat*item.grams/100)}g</div>
+        </div>
+        <div style="font-weight:700;color:var(--green)">${Math.round(item.per100g.calories*item.grams/100)} kcal</div>
+      </div>`).join('');
+    resultEl.innerHTML=`
+      <div style="background:var(--green-xlight);border-radius:12px;padding:16px">
+        <div style="font-weight:800;font-size:15px;margin-bottom:8px">🤖 AI Analyse</div>
+        ${rows}
+        <div style="display:flex;justify-content:space-between;font-weight:800;font-size:15px;margin-top:12px;padding-top:8px;border-top:2px solid var(--green-light)">
+          <span>${S.lang==="nl"?"Totaal":"Total"}</span>
+          <span style="color:var(--green)">${data.total.calories} kcal</span>
+        </div>
+        <button class="btn-primary" style="width:100%;margin-top:12px" onclick="addPhotoFoods(${JSON.stringify(data.items).replace(/"/g,'&quot;')})">
+          + ${S.lang==="nl"?"Alles toevoegen":"Add all"}
+        </button>
+      </div>`;
+  }catch(e){
+    resultEl.innerHTML=`<div style="color:var(--red);padding:12px;text-align:center">❌ ${e.message||'Analyse mislukt'}</div>`;
+  }finally{aiEl.style.display='none';}
+  }
+
+// ===== ACTIVITIES =====
+function filterActivities(q){renderActivities(q);}
+function renderActivities(q){
+  const ql=q.toLowerCase();
+  const filtered=q?ACTIVITIES.filter(a=>a.n.toLowerCase().includes(ql)||a.e.toLowerCase().includes(ql)):ACTIVITIES;
+  document.getElementById('activityResults').innerHTML=filtered.map((a,i)=>`
+    <div class="activity-card" onclick="selectAct(${ACTIVITIES.indexOf(a)},this)">
+      <div class="activity-card-icon">${a.i}</div>
+      <div class="activity-card-name">${S.lang==='nl'?a.n:a.e}</div>
+      <div class="activity-card-met">MET ${a.m}</div>
+    </div>`).join('');
+}
+function selectAct(i,el){
+  document.querySelectorAll('.activity-card').forEach(c=>c.classList.remove('selected'));
+  el.classList.add('selected');
+  S.selectedActivity=ACTIVITIES[i];
+  document.getElementById('selectedActivityName').textContent=S.lang==='nl'?ACTIVITIES[i].n:ACTIVITIES[i].e;
+  document.getElementById('actMETinfo').textContent='MET: '+ACTIVITIES[i].m;
+  document.getElementById('activityCalcCard').style.display='block';
+  updateDistanceVisibility();
+  calcActivity();
+}
+function calcActivity(){
+  if(!S.selectedActivity)return;
+  const dur=parseFloat(document.getElementById('actDuration').value)||0;
+  const w=S.user?.weight||parseFloat(document.getElementById('actWeight').value)||75;
+  document.getElementById('burnedCalResult').textContent=Math.round(S.selectedActivity.m*w*(dur/60));
+}
+function logActivity(){
+  if(!S.selectedActivity)return;
+  const dur=parseFloat(document.getElementById('actDuration').value)||0;
+  const w=S.user?.weight||parseFloat(document.getElementById('actWeight').value)||75;
+  const dist=parseFloat(document.getElementById('actDistance').value)||null;
+  const burned=Math.round(S.selectedActivity.m*w*(dur/60));
+  S.activities.push({id:Date.now(),date:todayStr(),name:S.lang==='nl'?S.selectedActivity.n:S.selectedActivity.e,icon:S.selectedActivity.i,duration:dur,distance:dist,burned});
+  saveData();renderLoggedActivities();updateProfileUI();
+  showNotif('✅ Activiteit opgeslagen! -'+burned+' kcal');
+}
+function logManualActivity(){
+  const name=document.getElementById('manActName').value.trim();
+  const dur=parseFloat(document.getElementById('manActDuration').value)||0;
+  const burned=parseFloat(document.getElementById('manActCal').value)||0;
+  if(!name||!burned){showNotif('❌ Vul naam en calorieën in');return;}
+  S.activities.push({id:Date.now(),date:todayStr(),name,icon:'💪',duration:dur,distance:null,burned});
+  saveData();renderLoggedActivities();updateProfileUI();
+  showNotif('✅ '+name+' opgeslagen! -'+burned+' kcal');
+  ['manActName','manActDuration','manActCal'].forEach(id=>document.getElementById(id).value='');
+}
+function renderLoggedActivities(){
+  const today=S.activities.filter(a=>a.date===todayStr());
+  document.getElementById('loggedActivitiesList').innerHTML=today.length===0
+    ?'<div class="empty-state"><div class="empty-icon">🏃</div>Nog geen activiteiten</div>'
+    :today.map(a=>`<div class="log-item"><div class="log-item-left"><div class="log-item-icon">${a.icon}</div><div><div class="log-item-name">${a.name}</div><div class="log-item-detail">${a.duration} min${a.distance?' · '+a.distance+' km':''}</div></div></div><div class="log-item-cal">-${a.burned} kcal</div></div>`).join('');
+}
+
+// ===== LOGBOOK =====
+function renderLogbook(){
+  renderWeightChart();renderCalBarChart();renderMacroPie();
+  if(S.weightLog.length){
+    const cur=S.weightLog[S.weightLog.length-1].weight,start=S.weightLog[0].weight;
+    const diff=(cur-start).toFixed(1);
+    document.getElementById('logCurrentWeight').textContent=cur+' kg';
+    document.getElementById('logWeightDiff').textContent=(diff>0?'+':'')+diff+' kg';
+  }
+  const cals=Object.values(S.calLog).filter(v=>v>0);
+  if(cals.length)document.getElementById('logAvgCals').textContent=Math.round(cals.reduce((a,b)=>a+b,0)/cals.length)+' kcal';
+}
+// renderWeightChart is defined below with period support
+function renderCalBarChart(){
+  const el=document.getElementById('calBarChart');
+  const isWeek=S.calPeriod==='week',isAvg=S.calPeriod==='avg';
+  const days=isWeek?7:30;
+  const labels=[],values=[];
+  const dayNamesNL=['zo','ma','di','wo','do','vr','za'];
+  const dayNamesEN=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const dayNames=S.lang==='nl'?dayNamesNL:dayNamesEN;
+  if(isWeek){
+    // Find Monday of current week
+    const today=new Date();
+    const dow=today.getDay(); // 0=Sun,1=Mon,...
+    const monday=new Date(today);
+    monday.setDate(today.getDate()-(dow===0?6:dow-1));
+    for(let i=0;i<7;i++){
+      const d=new Date(monday);d.setDate(monday.getDate()+i);
+      const key=d.toISOString().split('T')[0];
+      labels.push(dayNames[d.getDay()]);
+      values.push(S.calLog[key]||0);
+    }
+  } else {
+    for(let i=days-1;i>=0;i--){
+      const d=new Date();d.setDate(d.getDate()-i);
+      const key=d.toISOString().split('T')[0];
+      labels.push(d.getDate()+'');
+      values.push(S.calLog[key]||0);
+    }
+  }
+  const maxVal=Math.max(...values,500);
+  const nonZero=values.filter(v=>v>0);
+  const avg=nonZero.length?Math.round(nonZero.reduce((a,b)=>a+b,0)/nonZero.length):0;
+  document.getElementById('avgBadge').textContent='📊 Gem: '+avg+' kcal/dag';
+  if(isAvg){
+    el.innerHTML=`<div style="width:100%;text-align:center;padding:20px;font-size:14px;color:var(--gray-600)"><div style="font-family:'Nunito',sans-serif;font-size:48px;font-weight:900;color:var(--green-dark)">${avg}</div><div>kcal gemiddeld per dag</div><div style="font-size:12px;color:var(--gray-400);margin-top:4px">Gebaseerd op ${nonZero.length} gelogde dag${nonZero.length!==1?'en':''}</div></div>`;
+    return;
+  }
+  el.innerHTML=labels.map((l,i)=>{
+    const pct=Math.max(2,(values[i]/maxVal)*100);
+    const todayKey=new Date().toISOString().split('T')[0];
+    const isWeekView=S.calPeriod==='week';
+    let isToday=false;
+    if(isWeekView){
+      const dow=new Date().getDay();
+      const mondayIdx=0;
+      const todayIdx=(dow===0?6:dow-1);
+      isToday=(i===todayIdx);
+    } else {
+      isToday=i===labels.length-1;
+    }
+    return`<div class="bar-wrap"><div class="bar" style="height:${pct}%;background:${isToday?'linear-gradient(180deg,#22c55e,#16a34a)':'linear-gradient(180deg,#86efac,#4ade80)'}"><div class="bar-tooltip">${values[i]} kcal</div></div><div class="bar-label">${l}</div></div>`;
+  }).join('');
+}
+function setCalPeriod(p,btn){
+  S.calPeriod=p;
+  document.querySelectorAll('.chart-card .tab-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderCalBarChart();
+}
+function toggleMacros(btn){
+  const c=document.getElementById('macroContent');
+  const vis=c.style.display!=='none';
+  c.style.display=vis?'none':'block';
+  btn.textContent=vis?(S.lang==='nl'?'Toon':'Show'):(S.lang==='nl'?'Verberg':'Hide');
+  if(!vis)renderMacroPie();
+}
+function renderMacroPie(){
+  let tp=0,tc=0,tf=0;
+  for(let i=6;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);const k=d.toISOString().split('T')[0];if(S.macroLog[k]){tp+=S.macroLog[k].protein||0;tc+=S.macroLog[k].carbs||0;tf+=S.macroLog[k].fat||0;}}
+  document.getElementById('legendProtein').textContent=tp+'g';
+  document.getElementById('legendCarbs').textContent=tc+'g';
+  document.getElementById('legendFats').textContent=tf+'g';
+  const canvas=document.getElementById('macroPieCanvas');
+  const ctx=canvas.getContext('2d');ctx.clearRect(0,0,160,160);
+  const total=tp+tc+tf;
+  if(!total){ctx.fillStyle='#e5e7eb';ctx.beginPath();ctx.arc(80,80,70,0,Math.PI*2);ctx.fill();ctx.fillStyle='#9ca3af';ctx.font='12px Poppins';ctx.textAlign='center';ctx.fillText('Geen data',80,84);return;}
+  let start=-Math.PI/2;
+  [{val:tp,color:'#3b82f6'},{val:tc,color:'#f97316'},{val:tf,color:'#a855f7'}].forEach(s=>{
+    const angle=(s.val/total)*Math.PI*2;
+    ctx.beginPath();ctx.moveTo(80,80);ctx.arc(80,80,70,start,start+angle);ctx.closePath();ctx.fillStyle=s.color;ctx.fill();
+    start+=angle;
+  });
+  ctx.beginPath();ctx.arc(80,80,40,0,Math.PI*2);ctx.fillStyle='white';ctx.fill();
+}
+
+// ===== NAV =====
+function showAppPage(id,btn){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-link').forEach(l=>l.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if(btn)btn.classList.add('active');
+  if(id==='logbookPage')renderLogbook();
+  if(id==='activitiesPage')renderLoggedActivities();
+  if(id==='profilePage')updateProfileUI();
+  if(id==='foodPage'){renderMeals();updateFoodSummary();}
+}
+
+// ===== MODALS =====
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+document.querySelectorAll('.modal-overlay').forEach(el=>el.addEventListener('click',function(e){if(e.target===el)closeModal(el.id);}));
+
+// ===== LANG =====
+function setLang(lang,btn){S.lang=lang;document.querySelectorAll('.lang-btn').forEach(b=>b.classList.remove('active'));if(btn)btn.classList.add('active');applyLang();}
+function setLangApp(lang,btn){S.lang=lang;document.querySelectorAll('.lang-btn-app').forEach(b=>b.classList.remove('active'));if(btn)btn.classList.add('active');applyLang();renderActivities(document.getElementById('activitySearchInput')?.value||'');}
+function applyLang(){
+  const l=S.lang;
+  document.querySelectorAll('[data-nl]').forEach(el=>{if(el.children.length===0)el.textContent=l==='nl'?el.getAttribute('data-nl'):el.getAttribute('data-en');});
+  document.querySelectorAll('[data-placeholder-nl]').forEach(el=>{el.placeholder=l==='nl'?el.getAttribute('data-placeholder-nl'):el.getAttribute('data-placeholder-en');});
+}
+
+// ===== UTILS =====
+function todayStr(){return new Date().toISOString().split('T')[0];}
+function showNotif(msg){
+  const icon=msg.match(/^[✅❌⚠️]/)?msg[0]:'✅';
+  const text=msg.replace(/^[✅❌⚠️] ?/,'');
+  document.getElementById('notif').children[0].textContent=icon;
+  document.getElementById('notifText').textContent=text;
+  document.getElementById('notif').classList.add('show');
+  setTimeout(()=>document.getElementById('notif').classList.remove('show'),3000);
+}
+
+
+
+
+
+// ===== STREAK LOGIC =====
+function calcStreak(){
+  const keys=Object.keys(S.calLog).filter(k=>S.calLog[k]>0).sort();
+  if(!keys.length) return 0;
+  let streak=0;
+  const today=todayStr();
+  // build a set for O(1) lookup
+  const set=new Set(keys);
+  let d=new Date(today);
+  // if today not logged yet, start from yesterday
+  if(!set.has(today)){d.setDate(d.getDate()-1);}
+  while(true){
+    const k=d.toISOString().split('T')[0];
+    if(set.has(k)){streak++;d.setDate(d.getDate()-1);}
+    else break;
+  }
+  return streak;
+}
+
+function renderStreakBadge(){
+  const el=document.getElementById('streakBadge');
+  if(!el) return;
+  const s=calcStreak();
+  if(s===0){el.innerHTML='';return;}
+  el.innerHTML=`<div class="streak-badge">🔥 ${s}<span class="streak-sub">${s===1?'dag':'dagen'} streak</span></div>`;
+}
+
+// ===== WEIGHT PERIOD =====
+// Firebase hooks called by the module script above
+window._S=null; // set after S is declared
+window._fbReady=function(user){
+  // Called when Firebase confirms user is logged in
+  const stored=localStorage.getItem('bt_user');
+  if(stored){S.user=JSON.parse(stored);}
+  if(!S.user){S.user={name:user.displayName||user.email.split('@')[0],email:user.email,uid:user.uid};}
+  loadUserData();
+  launchApp();
+  renderStreakBadge&&renderStreakBadge();
+  initWeightInput&&initWeightInput();
+};
+window._fbSignedOut=function(){
+  // Called when Firebase says user is logged out
+  S.user=null;
+  showAuthPage('loginPage');
+};
+window._fbLoadData=function(d){
+  if(d.meals)S.meals=d.meals;
+  if(d.activities)S.activities=d.activities;
+  if(d.weightLog)S.weightLog=d.weightLog;
+  if(d.calLog)S.calLog=d.calLog;
+  if(d.macroLog)S.macroLog=d.macroLog;
+};
+
+window._S=S;
+let _weightPeriod='week';
+function setWeightPeriod(p,btn){
+  _weightPeriod=p;
+  document.querySelectorAll('#logbookPage .tab-btn').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  renderWeightChart();
+}
+
+// ===== WEIGHT CHART WITH PERIOD + GOAL LINE + Y-AXIS =====
+function renderWeightChart(){
+  const canvas=document.getElementById('weightChart');
+  if(!canvas) return;
+  const ctx=canvas.getContext('2d');
+  const YPAD=36; // left padding for y-axis labels
+  const BOTTOM=22;
+  const CHARTW=(canvas.offsetWidth||canvas.parentElement?.offsetWidth||400);
+  canvas.width=CHARTW;
+  canvas.height=200;
+  ctx.clearRect(0,0,CHARTW,200);
+
+  const now=new Date();
+  const goalWeight=S.user?.goalWeight||null;
+  const lang=S.lang;
+  const dayNamesNL=['zo','ma','di','wo','do','vr','za'];
+  const dayNamesEN=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const monthNamesNL=['jan','feb','mrt','apr','mei','jun','jul','aug','sep','okt','nov','dec'];
+  const monthNamesEN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const dayNames=lang==='nl'?dayNamesNL:dayNamesEN;
+  const monthNames=lang==='nl'?monthNamesNL:monthNamesEN;
+
+  let data=[], xLabels=[];
+
+  if(_weightPeriod==='week'){
+    for(let i=6;i>=0;i--){
+      const d=new Date(now);d.setDate(d.getDate()-i);
+      const key=d.toISOString().split('T')[0];
+      const found=S.weightLog.filter(w=>w.date===key);
+      data.push({date:key,weight:found.length?found[found.length-1].weight:null});
+      xLabels.push(dayNames[d.getDay()]);
+    }
+  } else if(_weightPeriod==='month'){
+    for(let i=29;i>=0;i--){
+      const d=new Date(now);d.setDate(d.getDate()-i);
+      const key=d.toISOString().split('T')[0];
+      const found=S.weightLog.filter(w=>w.date===key);
+      data.push({date:key,weight:found.length?found[found.length-1].weight:null});
+      xLabels.push(i%5===0?d.getDate()+'':'');
+    }
+  } else {
+    for(let i=11;i>=0;i--){
+      const d=new Date(now);d.setDate(1);d.setMonth(d.getMonth()-i);
+      const key=d.toISOString().slice(0,7);
+      const weights=S.weightLog.filter(w=>w.date.startsWith(key)).map(w=>w.weight);
+      const weight=weights.length?Math.round((weights.reduce((a,b)=>a+b,0)/weights.length)*10)/10:null;
+      data.push({date:key+'-01',weight});
+      xLabels.push(monthNames[d.getMonth()]);
+    }
+  }
+
+  const valid=data.filter(d=>d.weight!==null).map(d=>d.weight);
+  if(valid.length<1){
+    ctx.fillStyle='#9ca3af';ctx.font='14px Poppins';ctx.textAlign='center';
+    ctx.fillText(lang==='nl'?'Log gewichten om de grafiek te zien':'Log weights to see the chart',CHARTW/2,100);
+    // Still update y-axis
+    const yEl=document.getElementById('weightYAxis');
+    if(yEl)yEl.innerHTML='';
+    return;
+  }
+
+  // Y range - include goal weight if set
+  const allVals=goalWeight?[...valid,goalWeight]:valid;
+  const rawMin=Math.min(...allVals),rawMax=Math.max(...allVals);
+  const yMin=Math.floor((rawMin-3)/5)*5;
+  const yMax=Math.ceil((rawMax+3)/5)*5;
+  const range=yMax-yMin||10;
+
+  // Update external y-axis div
+  const yEl=document.getElementById('weightYAxis');
+  if(yEl){
+    const steps=[];
+    for(let v=yMax;v>=yMin;v-=5) steps.push(v);
+    yEl.innerHTML=steps.map(v=>`<span>${v}</span>`).join('');
+    yEl.style.paddingBottom=BOTTOM+'px';
+  }
+
+  const PW=CHARTW, PH=200-BOTTOM-10;
+  const n=data.length;
+  const xStep=PW/(n-1||1);
+
+  const toY=w=>10+(1-(w-yMin)/range)*PH;
+  const toX=i=>i*xStep;
+
+  // Grid lines
+  ctx.strokeStyle='#f3f4f6';ctx.lineWidth=1;
+  for(let v=yMin;v<=yMax;v+=5){
+    const y=toY(v);
+    ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(PW,y);ctx.stroke();
+  }
+
+  // GOAL LINE (dashed, orange)
+  if(goalWeight&&goalWeight>=yMin&&goalWeight<=yMax){
+    const gy=toY(goalWeight);
+    ctx.save();
+    ctx.strokeStyle='#f97316';ctx.lineWidth=1.5;ctx.setLineDash([6,4]);
+    ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(PW,gy);ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle='#f97316';ctx.font='bold 9px Poppins';ctx.textAlign='right';
+    ctx.fillText(goalWeight+' kg',PW-4,gy-4);
+    ctx.restore();
+  }
+
+  // Build point list
+  const pts=data.map((d,i)=>({x:toX(i),y:d.weight!==null?toY(d.weight):null,w:d.weight}));
+
+  // Green fill gradient under line
+  const grad=ctx.createLinearGradient(0,0,0,PH+10);
+  grad.addColorStop(0,'rgba(34,197,94,0.35)');grad.addColorStop(1,'rgba(34,197,94,0.02)');
+  ctx.fillStyle=grad;
+  const validPts=pts.filter(p=>p.y!==null);
+  if(validPts.length>1){
+    ctx.beginPath();
+    ctx.moveTo(validPts[0].x,validPts[0].y);
+    validPts.forEach(p=>ctx.lineTo(p.x,p.y));
+    ctx.lineTo(validPts[validPts.length-1].x,PH+10);
+    ctx.lineTo(validPts[0].x,PH+10);
+    ctx.closePath();ctx.fill();
+  }
+
+  // Green line
+  ctx.strokeStyle='#22c55e';ctx.lineWidth=2.5;ctx.lineJoin='round';ctx.lineCap='round';
+  let started=false;
+  pts.forEach(p=>{
+    if(p.y===null){started=false;return;}
+    if(!started){ctx.beginPath();ctx.moveTo(p.x,p.y);started=true;}
+    else ctx.lineTo(p.x,p.y);
+  });
+  if(started)ctx.stroke();
+
+  // Dots + weight labels (above dot)
+  const showEvery=n<=7?1:n<=14?2:n<=31?5:1;
+  pts.forEach((p,i)=>{
+    if(p.y===null) return;
+    // Dot with white border
+    ctx.beginPath();ctx.arc(p.x,p.y,4.5,0,Math.PI*2);ctx.fillStyle='white';ctx.fill();
+    ctx.beginPath();ctx.arc(p.x,p.y,3.5,0,Math.PI*2);ctx.fillStyle='#16a34a';ctx.fill();
+    // Weight label above
+    if(i===0||i===pts.length-1||i%showEvery===0){
+      ctx.fillStyle='#1f2937';ctx.font='bold 9px Poppins';ctx.textAlign='center';
+      ctx.fillText(p.w+' kg',p.x,p.y-10);
+    }
+  });
+
+  // X-axis labels
+  ctx.fillStyle='#9ca3af';ctx.font='9px Poppins';ctx.textAlign='center';
+  xLabels.forEach((lbl,i)=>{
+    if(!lbl) return;
+    const x=toX(i);
+    ctx.fillText(lbl,x,200-6);
+  });
+}
+
+
+
+// ===== WEIGHT INPUT: init from profile data =====
+function initWeightInput(){
+  const el=document.getElementById('newWeightInput');
+  if(!el) return;
+  // Use last logged weight or initial weight from questionnaire
+  if(S.weightLog&&S.weightLog.length>0){
+    el.value=S.weightLog[S.weightLog.length-1].weight;
+  } else if(S.user&&S.user.weight){
+    el.value=S.user.weight;
+  }
+}
+
+
+
+// ===== DISTANCE TOGGLE based on selected activity =====
+function updateDistanceVisibility(){
+  const act=S.selectedActivity;
+  const group=document.getElementById('actDistanceGroup');
+  if(!group) return;
+  group.style.display=(act&&act.dist)?'block':'none';
+}
+
+
+
+// ===== CALC ACTIVITY with distance =====
+function calcActivity(){
+  if(!S.selectedActivity) return;
+  const act=S.selectedActivity;
+  const dur=parseFloat(document.getElementById('actDuration').value)||0;
+  const w=S.user?.weight||parseFloat(document.getElementById('actWeight').value)||75;
+  let burned=0;
+  if(act.dist){
+    const dist=parseFloat(document.getElementById('actDistance').value)||0;
+    if(dist>0&&dur>0){
+      // Speed in km/h
+      const speed=dist/(dur/60);
+      // Adjust MET based on speed (use base MET from activity)
+      burned=Math.round(act.m*w*(dur/60));
+    } else {
+      burned=Math.round(act.m*w*(dur/60));
+    }
+  } else {
+    burned=Math.round(act.m*w*(dur/60));
+  }
+  document.getElementById('burnedCalResult').textContent=burned;
+  return burned;
+}
+
+
+
+
+
+
+
+// ===== INIT OVERRIDES on load =====
+document.addEventListener('DOMContentLoaded',function(){
+  // Init weight spinner from stored weight
+  const lw=localStorage.getItem('bt_lastWeight');
+  if(lw){
+    const el=document.getElementById('newWeightInput');
+    if(el) el.value=parseFloat(lw);
+  }
+  renderStreakBadge();
+  // Set default period button active
+  const wbtn=document.querySelector('#logbookPage .tab-btn');
+  if(wbtn) wbtn.classList.add('active');
+});
+
+// ===== INIT =====
+const stored=localStorage.getItem('bt_user');
+if(stored){const u=JSON.parse(stored);if(u.tdee){S.user=u;loadUserData();setTimeout(()=>{initWeightInput();renderStreakBadge();},100);}}
+</script>
+</body>
+</html>

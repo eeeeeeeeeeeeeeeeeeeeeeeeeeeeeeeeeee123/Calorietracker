@@ -1,0 +1,8 @@
+{
+  "name": "calorie-tracker",
+  "version": "1.0.0",
+  "description": "Calorie tracker with Open Food Facts",
+  "engines": {
+    "node": ">=18"
+  }
+}
