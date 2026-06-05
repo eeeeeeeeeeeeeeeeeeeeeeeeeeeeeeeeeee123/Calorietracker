@@ -1329,7 +1329,7 @@ async function lookupBarcode(code){
         <div style="font-size:13px;color:var(--gray-600)">🔥 ${food.c} kcal &nbsp;|&nbsp; P: ${food.p}g &nbsp;K: ${food.k}g &nbsp;V: ${food.v}g</div>
         <div style="font-size:11px;color:var(--gray-400);margin-top:4px">per 100g</div>
         <button class="btn-primary" style="width:100%;margin-top:12px" onclick="addBarcodeFood(${JSON.stringify(food).replace(/"/g,'&quot;')})">
-          + ${S.lang==='nl'?'Toevoegen':'Add'}
+          ${S.lang==='nl'?'+ Toevoegen':'+ Add'}
         </button>
       </div>`;
       return;
@@ -1670,6 +1670,8 @@ function setWeightPeriod(p,btn){
   document.querySelectorAll('#logbookPage .tab-btn').forEach(b=>b.classList.remove('active'));
   if(btn) btn.classList.add('active');
   renderWeightChart();
+}
+
 }
 
 // ===== WEIGHT CHART WITH PERIOD + GOAL LINE + Y-AXIS =====
