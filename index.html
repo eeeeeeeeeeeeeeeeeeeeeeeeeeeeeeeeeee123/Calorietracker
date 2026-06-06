@@ -282,13 +282,14 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
   .macro-pie-wrap{grid-template-columns:1fr;}
 }
 
+.link-btn{background:none;border:none;color:var(--green);font-weight:700;cursor:pointer;font-family:inherit;font-size:14px;padding:0;}
 </style>
 </head>
 <body>
 <!-- LANG SWITCHER AUTH -->
 <div class="lang-switcher" id="authLangSwitcher">
-  <button class="lang-btn active" onclick="setLang('nl',this)">NL</button>
-  <button class="lang-btn" onclick="setLang('en',this)">EN</button>
+  <button class="lang-btn active" onclick="if(window.setLang)setLang('nl',this);else{document.querySelectorAll('[data-nl]').forEach(e=>{if(!e.children.length)e.textContent=e.dataset.nl;});this.classList.add('active');this.nextElementSibling.classList.remove('active');}">NL</button>
+  <button class="lang-btn" onclick="if(window.setLang)setLang('en',this);else{document.querySelectorAll('[data-nl]').forEach(e=>{if(!e.children.length)e.textContent=e.dataset.en;});this.classList.add('active');this.previousElementSibling.classList.remove('active');}">EN</button>
 </div>
 
 <!-- WELCOME CONFETTI SCREEN -->
@@ -317,7 +318,7 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
     <button class="btn-primary" onclick="doLogin()" data-nl="Inloggen" data-en="Log in">Inloggen</button>
     <p class="auth-link">
       <span data-nl="Nog geen account?" data-en="No account yet?">Nog geen account?</span>
-      <a href="#" onclick="showAuthPage('registerPage')" data-nl="Registreren" data-en="Register"> Registreren</a>
+      <a href="javascript:void(0)" onclick="showAuthPage('registerPage')" data-nl="Registreren" data-en="Register"> Registreren</a>
     </p>
   </div>
 </div>
@@ -339,7 +340,7 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
     <button class="btn-primary" onclick="doRegister()" data-nl="Account aanmaken" data-en="Create account">Account aanmaken</button>
     <p class="auth-link">
       <span data-nl="Al een account?" data-en="Already have an account?">Al een account?</span>
-      <a href="#" onclick="showAuthPage('loginPage')" data-nl="Inloggen" data-en="Log in"> Inloggen</a>
+      <a href="javascript:void(0)" onclick="showAuthPage('loginPage')" data-nl="Inloggen" data-en="Log in"> Inloggen</a>
     </p>
   </div>
 </div>
@@ -2143,4 +2144,3 @@ document.addEventListener('DOMContentLoaded', function(){
 </script>
 </body>
 </html>
-   
