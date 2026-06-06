@@ -5,11 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>BaranTrack</title>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-<!-- Firebase -->
-
-<!-- ZXing barcode scanner -->
-<script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
 <style>
+
 :root{--green:#22c55e;--green-dark:#16a34a;--green-light:#86efac;--green-xlight:#dcfce7;--gray-50:#f9fafb;--gray-100:#f3f4f6;--gray-200:#e5e7eb;--gray-400:#9ca3af;--gray-600:#4b5563;--gray-800:#1f2937;--blue:#3b82f6;--orange:#f97316;--red:#ef4444;--purple:#a855f7;--radius:12px;--shadow:0 4px 24px rgba(0,0,0,0.08);--shadow-lg:0 8px 40px rgba(0,0,0,0.12);}
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray-800);min-height:100vh;}
@@ -284,56 +281,10 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
   .manual-inputs{grid-template-columns:1fr 1fr;}
   .macro-pie-wrap{grid-template-columns:1fr;}
 }
+
 </style>
-<!-- Firebase Compat SDK (global, no modules needed) -->
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-<script>
-const firebaseConfig = {
-  apiKey:            "AIzaSyAKaQLM7X6mXgoWuvmWNNFJZYj079SF86s",
-  authDomain:        "baran-afval-site.firebaseapp.com",
-  projectId:         "baran-afval-site",
-  storageBucket:     "baran-afval-site.firebasestorage.app",
-  messagingSenderId: "973259864350",
-  appId:             "1:973259864350:web:de5d2035bc64778742310f"
-};
-firebase.initializeApp(firebaseConfig);
-const fbAuth = firebase.auth();
-const fbDb   = firebase.firestore();
-
-// Auth state observer
-fbAuth.onAuthStateChanged(async function(user) {
-  if (user) {
-    window._fbUser = user;
-    try {
-      const snap = await fbDb.collection('users').doc(user.uid).get();
-      if (snap.exists) {
-        const d = snap.data();
-        if (window._S) {
-          if (d.user)  window._S.user = d.user;
-          if (d.data)  window._fbLoadData && window._fbLoadData(d.data);
-        }
-      }
-    } catch(e) { console.warn('Firestore load error:', e); }
-    window._fbReady && window._fbReady(user);
-  } else {
-    window._fbUser = null;
-    window._fbSignedOut && window._fbSignedOut();
-  }
-});
-
-// Expose Firebase helpers for use in main script
-window._fbCompat = {
-  signIn:    (e,p) => fbAuth.signInWithEmailAndPassword(e,p),
-  register:  (e,p) => fbAuth.createUserWithEmailAndPassword(e,p),
-  signOut:   ()    => fbAuth.signOut(),
-  save:      (uid, data) => fbDb.collection('users').doc(uid).set(data, {merge:true})
-};
-</script>
 </head>
 <body>
-
 <!-- LANG SWITCHER AUTH -->
 <div class="lang-switcher" id="authLangSwitcher">
   <button class="lang-btn active" onclick="setLang('nl',this)">NL</button>
@@ -716,7 +667,30 @@ window._fbCompat = {
 
 <div class="notif" id="notif">✅ <span id="notifText"></span></div>
 
+<!-- All scripts at bottom so DOM exists when they run -->
+<script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
 <script>
+// ===== FIREBASE INIT (after compat SDKs loaded) =====
+const firebaseConfig = {
+  apiKey:            "AIzaSyAKaQLM7X6mXgoWuvmWNNFJZYj079SF86s",
+  authDomain:        "baran-afval-site.firebaseapp.com",
+  projectId:         "baran-afval-site",
+  storageBucket:     "baran-afval-site.firebasestorage.app",
+  messagingSenderId: "973259864350",
+  appId:             "1:973259864350:web:de5d2035bc64778742310f"
+};
+let _fbAuth = null, _fbDb = null;
+try {
+  firebase.initializeApp(firebaseConfig);
+  _fbAuth = firebase.auth();
+  _fbDb   = firebase.firestore();
+} catch(e) { console.warn('Firebase init failed:', e); }
+
+// ===== APP STATE =====
 // ===== STATE =====
 const S = {
   lang:'nl', user:null,
@@ -1905,101 +1879,9 @@ document.addEventListener('DOMContentLoaded',function(){
 const stored=localStorage.getItem('bt_user');
 if(stored){const u=JSON.parse(stored);if(u.tdee){S.user=u;loadUserData();setTimeout(()=>{initWeightInput();renderStreakBadge();},100);}}
 
-// ===== EXPOSE ALL FUNCTIONS TO WINDOW (needed for HTML onclick= attributes) =====
-window.setLang = setLang;
-window.showAuthPage = showAuthPage;
-window.doLogin = doLogin;
-window.doRegister = doRegister;
-window.doLogout = doLogout;
-window.nextStep = nextStep;
-window.prevStep = prevStep;
-window.finishQuestionnaire = finishQuestionnaire;
-window.selectGoal = selectGoal;
-window.selectActivity = selectActivity;
-window.selectGender = selectGender;
-window.showPage = showPage;
-window.openMealModal = openMealModal;
-window.closeMealModal = closeMealModal;
-window.searchFood = searchFood;
-window.selectFood = selectFood;
-window.addFood = addFood;
-window.removeFood = removeFood;
-window.setMealPortion = setMealPortion;
-window.openBarcodeModal = openBarcodeModal;
-window.closeBarcodeModal = closeBarcodeModal;
-window.lookupBarcode = lookupBarcode;
-window.addBarcodeFood = addBarcodeFood;
-window.openCameraScanner = openCameraScanner;
-window.stopCameraScan = stopCameraScan;
-window.analyzePhoto = analyzePhoto;
-window.addPhotoFoods = addPhotoFoods;
-window.selectAct = selectAct;
-window.calcActivity = calcActivity;
-window.saveActivity = saveActivity;
-window.filterActivities = filterActivities;
-window.logWeight = logWeight;
-window.setCalPeriod = setCalPeriod;
-window.setWeightPeriod = setWeightPeriod;
-window.renderLogbook = renderLogbook;
-window.showNotif = showNotif;
-window.updateDashboard = updateDashboard;
-window.renderMeals = renderMeals;
-window.saveDayLog = saveDayLog;
 window.spinChange = typeof spinChange !== 'undefined' ? spinChange : null;
 
 
-// ===== CAMERA BARCODE SCANNER =====
-var _codeReader = null;
-function openCameraScanner(){
-  openBarcodeModal();
-  var area = document.getElementById('cameraScanArea');
-  var status = document.getElementById('cameraScanStatus');
-  if(area) area.style.display='block';
-  if(status) status.style.display='block';
-  if(typeof ZXing === 'undefined'){ showNotif('❌ Scanner niet beschikbaar'); return; }
-  try{
-    _codeReader = new ZXing.BrowserMultiFormatReader();
-    _codeReader.decodeFromConstraints(
-      {video:{facingMode:'environment'}},
-      document.getElementById('cameraPreview'),
-      function(result,err){
-        if(result){
-          var code=result.getText();
-          document.getElementById('barcodeInput').value=code;
-          stopCameraScan();
-          lookupBarcode(code);
-        }
-      }
-    );
-  }catch(e){ showNotif('❌ Camera niet beschikbaar'); stopCameraScan(); }
-}
-function stopCameraScan(){
-  if(_codeReader){try{_codeReader.reset();}catch(e){}_codeReader=null;}
-  var area=document.getElementById('cameraScanArea');
-  var status=document.getElementById('cameraScanStatus');
-  if(area)area.style.display='none';
-  if(status)status.style.display='none';
-}
-window.openCameraScanner = openCameraScanner;
-window.stopCameraScan = stopCameraScan;
-
-
-// Extra aliases
-window.finishQuest = finishQuest;
-window.openPhotoModal = openPhotoModal;
-window.addFoodToMeal = addFoodToMeal;
-window.addManualFood = addManualFood;
-window.closeModal = closeModal;
-window.logActivity = logActivity;
-window.logManualActivity = logManualActivity;
-window.renderActivities = renderActivities;
-window.toggleMacros = toggleMacros;
-window.setLangApp = setLangApp;
-window.showAppPage = showAppPage;
-window.showWelcome = showWelcome;
-window.hideWelcome = hideWelcome;
-window.openFoodSearch = openFoodSearch;
-window.openBarcodeModal = openBarcodeModal;
 window.selectGoal = selectGoal;
 window.selectActivity = selectActivity;
 window.nextStep = nextStep;
@@ -2038,6 +1920,226 @@ window.updateDashboard = function(){
   if(typeof renderStreakBadge==='function') renderStreakBadge();
 };
 
+// ===== FIREBASE AUTH OBSERVER (runs after all functions defined) =====
+if (_fbAuth) {
+  _fbAuth.onAuthStateChanged(async function(user) {
+    if (user) {
+      window._fbUser = user;
+      try {
+        const snap = await _fbDb.collection('users').doc(user.uid).get();
+        if (snap.exists) {
+          const d = snap.data();
+          if (d.user) S.user = d.user;
+          if (d.data) {
+            if(d.data.meals)     S.meals     = d.data.meals;
+            if(d.data.activities)S.activities = d.data.activities;
+            if(d.data.weightLog) S.weightLog  = d.data.weightLog;
+            if(d.data.calLog)    S.calLog     = d.data.calLog;
+            if(d.data.macroLog)  S.macroLog   = d.data.macroLog;
+          }
+        }
+      } catch(e) { console.warn('Firestore load:', e); }
+      loadUserData();
+      launchApp();
+      renderStreakBadge && renderStreakBadge();
+      initWeightInput && initWeightInput();
+    } else {
+      window._fbUser = null;
+      S.user = null;
+      showAuthPage('loginPage');
+    }
+  });
+}
+
+// ===== UPDATE doLogin/doRegister/saveData/doLogout to use Firebase =====
+async function doLogin(){
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass  = document.getElementById('loginPass').value;
+  if(!email||!pass){ showNotif('❌ Vul alle velden in'); return; }
+  const btn = document.querySelector('#loginPage .btn-primary');
+  if(btn){ btn.textContent = S.lang==='nl'?'Inloggen...':'Logging in...'; btn.disabled=true; }
+  try {
+    if(_fbAuth) {
+      await _fbAuth.signInWithEmailAndPassword(email, pass);
+      // onAuthStateChanged handles the rest
+    } else {
+      // Fallback localStorage
+      const stored = localStorage.getItem('bt_user');
+      if(!stored){ showNotif('❌ Geen account gevonden'); return; }
+      const u = JSON.parse(stored);
+      if(u.email !== email){ showNotif('❌ Onjuist wachtwoord'); return; }
+      S.user = u; loadUserData(); launchApp();
+    }
+  } catch(e) {
+    const msg = e.code==='auth/wrong-password'||e.code==='auth/invalid-credential' ? '❌ Onjuist wachtwoord' :
+                e.code==='auth/user-not-found' ? '❌ Geen account gevonden' :
+                e.code==='auth/invalid-email'  ? '❌ Ongeldig e-mailadres' : '❌ Inloggen mislukt';
+    showNotif(msg);
+  } finally {
+    if(btn){ btn.textContent = S.lang==='nl'?'Inloggen':'Log in'; btn.disabled=false; }
+  }
+}
+
+async function doRegister(){
+  const name  = document.getElementById('regName').value.trim();
+  const email = document.getElementById('regEmail').value.trim();
+  const pass  = document.getElementById('regPass').value;
+  if(!name||!email||!pass){ showNotif('❌ Vul alle velden in'); return; }
+  if(pass.length < 6){ showNotif('❌ Wachtwoord min. 6 tekens'); return; }
+  const btn = document.querySelector('#registerPage .btn-primary');
+  if(btn){ btn.textContent = S.lang==='nl'?'Account aanmaken...':'Creating...'; btn.disabled=true; }
+  try {
+    if(_fbAuth) {
+      const cred = await _fbAuth.createUserWithEmailAndPassword(email, pass);
+      window._fbUser = cred.user;
+    }
+    S.user = { name, email, uid: window._fbUser?.uid || null };
+    localStorage.setItem('bt_user', JSON.stringify(S.user));
+    showAuthPage('questPage');
+  } catch(e) {
+    const msg = e.code==='auth/email-already-in-use' ? '❌ E-mail al in gebruik' :
+                e.code==='auth/weak-password'        ? '❌ Wachtwoord te zwak' :
+                e.code==='auth/invalid-email'        ? '❌ Ongeldig e-mailadres' : '❌ Registratie mislukt';
+    showNotif(msg);
+  } finally {
+    if(btn){ btn.textContent = S.lang==='nl'?'Account aanmaken':'Create account'; btn.disabled=false; }
+  }
+}
+
+async function saveData(){
+  if(S.user) localStorage.setItem('bt_user', JSON.stringify(S.user));
+  const dataObj = {meals:S.meals, activities:S.activities, weightLog:S.weightLog, calLog:S.calLog, macroLog:S.macroLog};
+  localStorage.setItem('bt_data', JSON.stringify(dataObj));
+  const uid = window._fbUser?.uid || S.user?.uid;
+  if(uid && _fbDb){
+    try {
+      await _fbDb.collection('users').doc(uid).set({user:S.user, data:dataObj}, {merge:true});
+    } catch(e){ console.warn('Firestore save failed:', e.message); }
+  }
+}
+
+function doLogout(){
+  if(_fbAuth) _fbAuth.signOut().catch(()=>{});
+  S.user = null;
+  localStorage.removeItem('bt_user');
+  localStorage.removeItem('bt_data');
+  window._fbUser = null;
+  showAuthPage('loginPage');
+}
+
+// ===== CAMERA BARCODE SCANNER =====
+var _codeReader = null;
+function openCameraScanner(){
+  openBarcodeModal();
+  var area   = document.getElementById('cameraScanArea');
+  var status = document.getElementById('cameraScanStatus');
+  if(area)   area.style.display   = 'block';
+  if(status) status.style.display = 'block';
+  document.getElementById('barcodeResult').innerHTML = '';
+  if(typeof ZXing === 'undefined'){ showNotif('❌ Scanner niet beschikbaar'); return; }
+  try {
+    _codeReader = new ZXing.BrowserMultiFormatReader();
+    _codeReader.decodeFromConstraints(
+      {video:{facingMode:'environment'}},
+      document.getElementById('cameraPreview'),
+      function(result, err){
+        if(result){
+          var code = result.getText();
+          document.getElementById('barcodeInput').value = code;
+          stopCameraScan();
+          lookupBarcode(code);
+        }
+      }
+    );
+  } catch(e){ showNotif('❌ Camera niet beschikbaar'); stopCameraScan(); }
+}
+function stopCameraScan(){
+  if(_codeReader){ try{ _codeReader.reset(); }catch(e){} _codeReader=null; }
+  var area   = document.getElementById('cameraScanArea');
+  var status = document.getElementById('cameraScanStatus');
+  if(area)   area.style.display   = 'none';
+  if(status) status.style.display = 'none';
+}
+
+// ===== EXPOSE ALL FUNCTIONS TO window FOR onclick= ATTRIBUTES =====
+// Core navigation
+window.setLang            = setLang;
+window.showAuthPage       = showAuthPage;
+window.showAppPage        = showAppPage;
+window.showPage           = showAppPage;
+window.doLogin            = doLogin;
+window.doRegister         = doRegister;
+window.doLogout           = doLogout;
+// Questionnaire
+window.nextStep           = nextStep;
+window.prevStep           = function(cur){ document.getElementById('step'+cur).style.display='none'; document.getElementById('step'+(cur-1)).style.display='block'; };
+window.finishQuestionnaire= finishQuest;
+window.finishQuest        = finishQuest;
+window.selectGoal         = selectGoal;
+window.selectActivity     = selectActivity;
+window.selectGender       = function(el,val){ document.querySelectorAll('.gender-option').forEach(o=>o.classList.remove('selected')); el.classList.add('selected'); if(typeof qData!=='undefined') qData.gender=val; };
+// Food
+window.openMealModal      = openFoodSearch;
+window.openFoodSearch     = openFoodSearch;
+window.closeMealModal     = function(){ closeModal('mealModal'); };
+window.closeModal         = closeModal;
+window.searchFood         = searchFood;
+window.selectFood         = selectFood;
+window.addFood            = addFoodToMeal;
+window.addFoodToMeal      = addFoodToMeal;
+window.addManualFood      = addManualFood;
+window.removeFood         = removeFood;
+window.setMealPortion     = updatePortionPreview;
+window.updatePortionPreview = updatePortionPreview;
+window.toggleMacros       = toggleMacros;
+// Barcode
+window.openBarcodeModal   = openBarcodeModal;
+window.closeBarcodeModal  = function(){ stopCameraScan(); closeModal('barcodeModal'); };
+window.lookupBarcode      = lookupBarcode;
+window.addBarcodeFood     = addBarcodeFood;
+window.openCameraScanner  = openCameraScanner;
+window.stopCameraScan     = stopCameraScan;
+// Photo
+window.openPhotoModal     = openPhotoModal;
+window.analyzePhoto       = analyzePhoto;
+window.addPhotoFoods      = addPhotoFoods;
+// Activities
+window.selectAct          = selectAct;
+window.calcActivity       = calcActivity;
+window.saveActivity       = logActivity;
+window.logActivity        = logActivity;
+window.logManualActivity  = logManualActivity;
+window.filterActivities   = filterActivities;
+// Logbook & profile
+window.logWeight          = logWeight;
+window.setCalPeriod       = setCalPeriod;
+window.setWeightPeriod    = setWeightPeriod;
+window.renderLogbook      = renderLogbook;
+window.showNotif          = showNotif;
+window.renderMeals        = renderMeals;
+window.saveDayLog         = saveDayLog;
+window.updateDashboard    = function(){ renderMeals&&renderMeals(); updateFoodSummary&&updateFoodSummary(); renderCalBarChart&&renderCalBarChart(); renderStreakBadge&&renderStreakBadge(); };
+window.renderStreakBadge  = renderStreakBadge;
+window.setLangApp         = setLangApp;
+window.hideWelcome        = hideWelcome;
+window.showWelcome        = showWelcome;
+
+// ===== INIT on page load =====
+document.addEventListener('DOMContentLoaded', function(){
+  window._S = S;
+  // If no Firebase, try localStorage
+  if(!_fbAuth){
+    const stored = localStorage.getItem('bt_user');
+    if(stored){
+      const u = JSON.parse(stored);
+      if(u && u.tdee){ S.user = u; loadUserData(); launchApp(); }
+    }
+  }
+  // Restore last weight
+  const lw = localStorage.getItem('bt_lastWeight');
+  const wEl = document.getElementById('newWeightInput');
+  if(lw && wEl) wEl.value = parseFloat(lw);
+});
 </script>
 </body>
 </html>
