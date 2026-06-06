@@ -1920,9 +1920,72 @@ window.updateDashboard = function(){
   if(typeof renderStreakBadge==='function') renderStreakBadge();
 };
 
+// ===== EXPOSE ALL FUNCTIONS TO window FOR onclick= ATTRIBUTES =====
+// Core navigation
+window.setLang            = setLang;
+window.showAuthPage       = showAuthPage;
+window.showAppPage        = showAppPage;
+window.showPage           = showAppPage;
+window.doLogin            = doLogin;
+window.doRegister         = doRegister;
+window.doLogout           = doLogout;
+// Questionnaire
+window.nextStep           = nextStep;
+window.prevStep           = function(cur){ document.getElementById('step'+cur).style.display='none'; document.getElementById('step'+(cur-1)).style.display='block'; };
+window.finishQuestionnaire= finishQuest;
+window.finishQuest        = finishQuest;
+window.selectGoal         = selectGoal;
+window.selectActivity     = selectActivity;
+window.selectGender       = function(el,val){ document.querySelectorAll('.gender-option').forEach(o=>o.classList.remove('selected')); el.classList.add('selected'); if(typeof qData!=='undefined') qData.gender=val; };
+// Food
+window.openMealModal      = openFoodSearch;
+window.openFoodSearch     = openFoodSearch;
+window.closeMealModal     = function(){ closeModal('mealModal'); };
+window.closeModal         = closeModal;
+window.searchFood         = searchFood;
+window.selectFood         = selectFood;
+window.addFood            = addFoodToMeal;
+window.addFoodToMeal      = addFoodToMeal;
+window.addManualFood      = addManualFood;
+window.removeFood         = removeFood;
+window.setMealPortion     = updatePortionPreview;
+window.updatePortionPreview = updatePortionPreview;
+window.toggleMacros       = toggleMacros;
+// Barcode
+window.openBarcodeModal   = openBarcodeModal;
+window.closeBarcodeModal  = function(){ stopCameraScan(); closeModal('barcodeModal'); };
+window.lookupBarcode      = lookupBarcode;
+window.addBarcodeFood     = addBarcodeFood;
+window.openCameraScanner  = openCameraScanner;
+window.stopCameraScan     = stopCameraScan;
+// Photo
+window.openPhotoModal     = openPhotoModal;
+window.analyzePhoto       = analyzePhoto;
+window.addPhotoFoods      = addPhotoFoods;
+// Activities
+window.selectAct          = selectAct;
+window.calcActivity       = calcActivity;
+window.saveActivity       = logActivity;
+window.logActivity        = logActivity;
+window.logManualActivity  = logManualActivity;
+window.filterActivities   = filterActivities;
+// Logbook & profile
+window.logWeight          = logWeight;
+window.setCalPeriod       = setCalPeriod;
+window.setWeightPeriod    = setWeightPeriod;
+window.renderLogbook      = renderLogbook;
+window.showNotif          = showNotif;
+window.renderMeals        = renderMeals;
+window.saveDayLog         = saveDayLog;
+window.updateDashboard    = function(){ renderMeals&&renderMeals(); updateFoodSummary&&updateFoodSummary(); renderCalBarChart&&renderCalBarChart(); renderStreakBadge&&renderStreakBadge(); };
+window.renderStreakBadge  = renderStreakBadge;
+window.setLangApp         = setLangApp;
+window.hideWelcome        = hideWelcome;
+window.showWelcome        = showWelcome;
+
 // ===== FIREBASE AUTH OBSERVER (runs after all functions defined) =====
 if (_fbAuth) {
-  _fbAuth.onAuthStateChanged(async function(user) {
+  try { _fbAuth.onAuthStateChanged(async function(user) {
     if (user) {
       window._fbUser = user;
       try {
@@ -1948,7 +2011,7 @@ if (_fbAuth) {
       S.user = null;
       showAuthPage('loginPage');
     }
-  });
+  }); } catch(e){ console.warn("Firebase auth error:", e); }
 }
 
 // ===== UPDATE doLogin/doRegister/saveData/doLogout to use Firebase =====
@@ -2061,69 +2124,6 @@ function stopCameraScan(){
   if(status) status.style.display = 'none';
 }
 
-// ===== EXPOSE ALL FUNCTIONS TO window FOR onclick= ATTRIBUTES =====
-// Core navigation
-window.setLang            = setLang;
-window.showAuthPage       = showAuthPage;
-window.showAppPage        = showAppPage;
-window.showPage           = showAppPage;
-window.doLogin            = doLogin;
-window.doRegister         = doRegister;
-window.doLogout           = doLogout;
-// Questionnaire
-window.nextStep           = nextStep;
-window.prevStep           = function(cur){ document.getElementById('step'+cur).style.display='none'; document.getElementById('step'+(cur-1)).style.display='block'; };
-window.finishQuestionnaire= finishQuest;
-window.finishQuest        = finishQuest;
-window.selectGoal         = selectGoal;
-window.selectActivity     = selectActivity;
-window.selectGender       = function(el,val){ document.querySelectorAll('.gender-option').forEach(o=>o.classList.remove('selected')); el.classList.add('selected'); if(typeof qData!=='undefined') qData.gender=val; };
-// Food
-window.openMealModal      = openFoodSearch;
-window.openFoodSearch     = openFoodSearch;
-window.closeMealModal     = function(){ closeModal('mealModal'); };
-window.closeModal         = closeModal;
-window.searchFood         = searchFood;
-window.selectFood         = selectFood;
-window.addFood            = addFoodToMeal;
-window.addFoodToMeal      = addFoodToMeal;
-window.addManualFood      = addManualFood;
-window.removeFood         = removeFood;
-window.setMealPortion     = updatePortionPreview;
-window.updatePortionPreview = updatePortionPreview;
-window.toggleMacros       = toggleMacros;
-// Barcode
-window.openBarcodeModal   = openBarcodeModal;
-window.closeBarcodeModal  = function(){ stopCameraScan(); closeModal('barcodeModal'); };
-window.lookupBarcode      = lookupBarcode;
-window.addBarcodeFood     = addBarcodeFood;
-window.openCameraScanner  = openCameraScanner;
-window.stopCameraScan     = stopCameraScan;
-// Photo
-window.openPhotoModal     = openPhotoModal;
-window.analyzePhoto       = analyzePhoto;
-window.addPhotoFoods      = addPhotoFoods;
-// Activities
-window.selectAct          = selectAct;
-window.calcActivity       = calcActivity;
-window.saveActivity       = logActivity;
-window.logActivity        = logActivity;
-window.logManualActivity  = logManualActivity;
-window.filterActivities   = filterActivities;
-// Logbook & profile
-window.logWeight          = logWeight;
-window.setCalPeriod       = setCalPeriod;
-window.setWeightPeriod    = setWeightPeriod;
-window.renderLogbook      = renderLogbook;
-window.showNotif          = showNotif;
-window.renderMeals        = renderMeals;
-window.saveDayLog         = saveDayLog;
-window.updateDashboard    = function(){ renderMeals&&renderMeals(); updateFoodSummary&&updateFoodSummary(); renderCalBarChart&&renderCalBarChart(); renderStreakBadge&&renderStreakBadge(); };
-window.renderStreakBadge  = renderStreakBadge;
-window.setLangApp         = setLangApp;
-window.hideWelcome        = hideWelcome;
-window.showWelcome        = showWelcome;
-
 // ===== INIT on page load =====
 document.addEventListener('DOMContentLoaded', function(){
   window._S = S;
@@ -2143,3 +2143,4 @@ document.addEventListener('DOMContentLoaded', function(){
 </script>
 </body>
 </html>
+   
