@@ -326,6 +326,19 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
   .manual-inputs{grid-template-columns:1fr 1fr;}
   .macro-pie-wrap{grid-template-columns:1fr;}
 }
+
+.logout-dropdown{position:absolute;top:48px;right:0;background:white;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.15);padding:8px;min-width:150px;z-index:9999;display:none;}
+.logout-dropdown.open{display:block;}
+.logout-item{padding:10px 16px;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px;color:var(--red);}
+.logout-item:hover{background:var(--gray-100);}
+
+.streak-celebrate{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;animation:fadeIn .3s;}
+.streak-celebrate-card{background:white;border-radius:24px;padding:40px 32px;text-align:center;max-width:320px;animation:popIn .4s cubic-bezier(.34,1.56,.64,1);}
+@keyframes popIn{from{opacity:0;transform:scale(.5);}to{opacity:1;transform:scale(1);}}
+.streak-fire{font-size:64px;display:block;animation:bounce2 .8s ease infinite;}
+@keyframes bounce2{0%,100%{transform:translateY(0);}50%{transform:translateY(-10px);}}
+.streak-num{font-size:48px;font-weight:900;color:#f97316;font-family:'Nunito',sans-serif;}
+.streak-msg{font-size:16px;color:var(--gray-600);margin:8px 0 24px;}
 </style>
 </head>
 <body>
@@ -453,7 +466,7 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
       <button class="nav-link active" onclick="showAppPage('profilePage',this)">👤 <span data-nl="Profiel" data-en="Profile">Profiel</span></button>
       <button class="nav-link" onclick="showAppPage('foodPage',this)">🍽️ <span data-nl="Eten" data-en="Food">Eten</span></button>
       <button class="nav-link" onclick="showAppPage('activitiesPage',this)">🏃 <span data-nl="Activiteiten" data-en="Activities">Activiteiten</span></button>
-      <button class="nav-link" onclick="showAppPage('logbookPage',this)">📊 <span data-nl="Logboek" data-en="Logbook">Logboek</span></button>
+      <button class="nav-link" onclick="showAppPage('logbookPage',this)">📊 <span data-nl="Logboek" data-en="Logbook">Logboek</span> <span id="navStreak" style="font-size:11px;background:#f97316;color:white;border-radius:20px;padding:1px 6px;margin-left:4px;display:none"></span></button>
     </div>
     <div class="nav-right">
       <div style="display:flex;gap:6px">
@@ -461,7 +474,10 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
         <button class="lang-btn-app" onclick="setLangApp('en',this)">EN</button>
       </div>
       <div class="avatar" id="userAvatar">B</div>
+      <div class="logout-dropdown" id="logoutDropdown">
+      <div class="logout-item" onclick="doLogout()">🚪 <span data-nl="Uitloggen" data-en="Log out">Uitloggen</span></div>
     </div>
+  </div>
   </nav>
 
   <!-- PROFILE PAGE -->
@@ -649,7 +665,7 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
     </div>
     <div style="font-size:12px;color:var(--gray-400);margin-bottom:12px">💡 Open Food Facts + lokale database van 200+ producten</div>
     <div id="foodSearchResults" class="search-results"></div>
-    <div id="portionSelect" class="portion-select">
+    <div id="portionSelect" class="portion-select"><div id="portionHint" style="font-size:12px;color:var(--green-dark);font-weight:600;margin-bottom:8px;text-align:center"></div>
       <div class="portion-row">
         <div class="portion-label" id="portionFoodName">—</div>
         <input type="number" id="portionGrams" value="100" min="1" max="2000" oninput="updatePortionPreview()">
@@ -687,8 +703,11 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
         ⏹ <span data-nl="Camera stoppen" data-en="Stop camera">Camera stoppen</span>
       </button>
     </div>
+    <button class="btn-primary" style="margin-bottom:12px" onclick="openCameraScanner()">
+      📷 <span data-nl="Camera starten" data-en="Start camera">Camera starten</span>
+    </button>
     <div id="cameraScanStatus" style="display:none;text-align:center;padding:8px;font-size:13px;color:var(--gray-400)">📷 Richt op barcode...</div>
-    <div class="barcode-scanner-sim"><div class="scan-anim">📷</div><p style="margin-top:12px;font-size:13px" data-nl="Camera vereist backend. Voer barcode handmatig in:" data-en="Camera requires backend. Enter barcode manually:">Camera vereist backend. Voer barcode handmatig in:</p></div>
+    <div class="barcode-scanner-sim" style="display:none"><div class="scan-anim">📷</div><p style="margin-top:12px;font-size:13px" data-nl="Camera vereist backend. Voer barcode handmatig in:" data-en="Camera requires backend. Enter barcode manually:">Camera vereist backend. Voer barcode handmatig in:</p></div>
     <label class="form-label" data-nl="BARCODE NUMMER" data-en="BARCODE NUMBER">BARCODE NUMMER</label>
     <div style="display:flex;gap:10px">
       <input type="text" class="form-input" id="barcodeInput" placeholder="b.v. 8710398123456" style="margin-bottom:0;flex:1">
@@ -1047,6 +1066,22 @@ function nextStep(cur){
   document.getElementById('dot'+cur).classList.add('done');
   document.getElementById('dot'+(cur+1)).classList.add('active');
 }
+function goToCalorieStep(){
+  if(!qData.actLevel){showNotif('❌ '+(S.lang==='nl'?'Kies activiteitsniveau':'Choose activity level'));return;}
+  // Calculate recommended kcal
+  const age=parseInt(document.getElementById('qAge').value)||25;
+  const height=parseInt(document.getElementById('qHeight').value)||175;
+  const gender=document.getElementById('qGender')?.value||'m';
+  const weight=parseFloat(document.getElementById('qWeight').value)||75;
+  let bmr=gender==='m'?10*weight+6.25*height-5*age+5:10*weight+6.25*height-5*age-161;
+  let tdee=Math.round(bmr*qData.actLevel);
+  if(qData.goal==='afvallen')tdee-=500;
+  if(qData.goal==='aankomen')tdee+=500;
+  document.getElementById('recommendedKcal').textContent=tdee;
+  document.getElementById('customKcal').value=tdee;
+  document.getElementById('step3').style.display='none';
+  document.getElementById('step4').style.display='block';
+}
 function finishQuest(){
   if(!qData.actLevel){showNotif('❌ Kies activiteitsniveau');return;}
   const age=parseInt(document.getElementById('qAge').value);
@@ -1058,6 +1093,10 @@ function finishQuest(){
   let tdee=Math.round(bmr*qData.actLevel);
   if(qData.goal==='afvallen')tdee-=500;
   if(qData.goal==='aankomen')tdee+=500;
+  const customKcalEl=document.getElementById('customKcal');
+  if(customKcalEl&&customKcalEl.value&&parseInt(customKcalEl.value)>=800){
+    tdee=parseInt(customKcalEl.value);
+  }
   S.user={...S.user,age,height,gender,weight,goalWeight,goal:qData.goal,actLevel:qData.actLevel,tdee};
   S.weightLog=[{date:todayStr(),weight}];
   saveData();
@@ -1221,6 +1260,14 @@ function selectFood(i){
   S.selectedFood=food;
   document.getElementById('portionFoodName').textContent=food.n;
   document.getElementById('portionGrams').value=100;
+  // Show standard portion hint
+  const hintEl = document.getElementById('portionHint');
+  if(hintEl){
+    const stdPortions = {'Ei (heel)':60,'Banaan':120,'Appel':150,'Brood':35,'Rijst (gekookt)':180,'Pasta (gekookt)':200,'Kipfilet (gegrild)':150,'Melk':200,'Yoghurt naturel':150,'Griekse yoghurt 0%':150,'Kwark (mager)':150,'Skyr':150,'Pindakaas':15,'Havermout (droog)':50,'Chips naturel':25,'Chocolade':30};
+    const std = food && stdPortions[food.n] ? stdPortions[food.n] : null;
+    hintEl.textContent = std ? (S.lang==='nl'?'💡 1 portie ≈ '+std+'g':'💡 1 serving ≈ '+std+'g') : '';
+    if(std) document.getElementById('portionGrams').value = std;
+  }
   updatePortionPreview();
   document.getElementById('portionSelect').classList.add('visible');
   document.querySelectorAll('.search-result-item').forEach((el,idx)=>{
@@ -1270,6 +1317,15 @@ function removeFood(meal,id){
   saveDayLog();renderMeals();updateFoodSummary();updateProfileUI();
 }
 
+function showStreakCelebration(){
+  const sc = calcStreak();
+  if(sc < 1) return;
+  document.getElementById('celebrateNum').textContent = sc;
+  const msg = S.lang==='nl' ? sc+' dag'+(sc===1?'':'en')+' op rij gelogd! Ga zo door!' : sc+' day'+(sc===1?'':'s')+' logged in a row! Keep it up!';
+  document.getElementById('celebrateMsg').textContent = msg;
+  const el = document.getElementById('streakCelebrate');
+  if(el){ el.style.display='flex'; setTimeout(()=>el.style.display='none',4000); }
+}
 function saveDayLog(){
   const today=todayStr();
   S.calLog[today]=getTodayCals();
@@ -1630,11 +1686,15 @@ function calcStreak(){
 }
 
 function renderStreakBadge(){
+  // Also update nav streak badge
+  const _navS = calcStreak();
+  const navEl = document.getElementById('navStreak');
+  if(navEl){ if(_navS>0){navEl.textContent='🔥'+_navS;navEl.style.display='inline';} else navEl.style.display='none'; }
   const el=document.getElementById('streakBadge');
   if(!el) return;
-  const s=calcStreak();
-  if(s===0){el.innerHTML='';return;}
-  el.innerHTML=`<div class="streak-badge">🔥 ${s}<span class="streak-sub">${s===1?'dag':'dagen'} streak</span></div>`;
+  const streakVal=calcStreak();
+  if(streakVal===0){el.innerHTML='';return;}
+  el.innerHTML=`<div class="streak-badge">🔥 ${streakVal}<span class="streak-sub">${streakVal===1?'dag':'dagen'} streak</span></div>`;
 }
 
 // ===== WEIGHT PERIOD =====
@@ -1672,162 +1732,143 @@ function setWeightPeriod(p,btn){
   renderWeightChart();
 }
 
-// ===== WEIGHT CHART WITH PERIOD + GOAL LINE + Y-AXIS =====
+// Weight chart below - KEEP + GOAL LINE + Y-AXIS =====
 function renderWeightChart(){
   const canvas=document.getElementById('weightChart');
   if(!canvas) return;
   const ctx=canvas.getContext('2d');
-  const YPAD=36; // left padding for y-axis labels
-  const BOTTOM=22;
-  const CHARTW=(canvas.offsetWidth||canvas.parentElement?.offsetWidth||400);
-  canvas.width=CHARTW;
-  canvas.height=200;
-  ctx.clearRect(0,0,CHARTW,200);
+  const BOTTOM=28, TOP=14;
+  const W=canvas.offsetWidth||canvas.parentElement?.offsetWidth||400;
+  const H=200;
+  canvas.width=W; canvas.height=H;
+  ctx.clearRect(0,0,W,H);
 
   const now=new Date();
-  const goalWeight=S.user?.goalWeight||null;
-  const lang=S.lang;
-  const dayNamesNL=['zo','ma','di','wo','do','vr','za'];
-  const dayNamesEN=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  const monthNamesNL=['jan','feb','mrt','apr','mei','jun','jul','aug','sep','okt','nov','dec'];
-  const monthNamesEN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const dayNames=lang==='nl'?dayNamesNL:dayNamesEN;
-  const monthNames=lang==='nl'?monthNamesNL:monthNamesEN;
+  const lang=S.lang||'nl';
+  const dayNL=['zo','ma','di','wo','do','vr','za'];
+  const dayEN=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const monNL=['jan','feb','mrt','apr','mei','jun','jul','aug','sep','okt','nov','dec'];
+  const monEN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const dayN=lang==='nl'?dayNL:dayEN, monN=lang==='nl'?monNL:monEN;
 
-  let data=[], xLabels=[];
-
+  let pts=[], labels=[];
   if(_weightPeriod==='week'){
     for(let i=6;i>=0;i--){
       const d=new Date(now);d.setDate(d.getDate()-i);
       const key=d.toISOString().split('T')[0];
       const found=S.weightLog.filter(w=>w.date===key);
-      data.push({date:key,weight:found.length?found[found.length-1].weight:null});
-      xLabels.push(dayNames[d.getDay()]);
+      pts.push(found.length?found[found.length-1].weight:null);
+      labels.push(dayN[d.getDay()]);
     }
   } else if(_weightPeriod==='month'){
     for(let i=29;i>=0;i--){
       const d=new Date(now);d.setDate(d.getDate()-i);
       const key=d.toISOString().split('T')[0];
       const found=S.weightLog.filter(w=>w.date===key);
-      data.push({date:key,weight:found.length?found[found.length-1].weight:null});
-      xLabels.push(i%5===0?d.getDate()+'':'');
+      pts.push(found.length?found[found.length-1].weight:null);
+      labels.push(i%5===0?String(d.getDate()):'');
     }
   } else {
     for(let i=11;i>=0;i--){
       const d=new Date(now);d.setDate(1);d.setMonth(d.getMonth()-i);
       const key=d.toISOString().slice(0,7);
-      const weights=S.weightLog.filter(w=>w.date.startsWith(key)).map(w=>w.weight);
-      const weight=weights.length?Math.round((weights.reduce((a,b)=>a+b,0)/weights.length)*10)/10:null;
-      data.push({date:key+'-01',weight});
-      xLabels.push(monthNames[d.getMonth()]);
+      const wts=S.weightLog.filter(w=>w.date.startsWith(key)).map(w=>w.weight);
+      pts.push(wts.length?Math.round(wts.reduce((a,b)=>a+b,0)/wts.length*10)/10:null);
+      labels.push(monN[d.getMonth()]);
     }
   }
 
-  const valid=data.filter(d=>d.weight!==null).map(d=>d.weight);
+  const valid=pts.filter(v=>v!==null);
   if(valid.length<1){
     ctx.fillStyle='#9ca3af';ctx.font='14px Poppins';ctx.textAlign='center';
-    ctx.fillText(lang==='nl'?'Log gewichten om de grafiek te zien':'Log weights to see the chart',CHARTW/2,100);
-    // Still update y-axis
-    const yEl=document.getElementById('weightYAxis');
-    if(yEl)yEl.innerHTML='';
+    ctx.fillText(lang==='nl'?'Nog geen gewicht gelogd':'No weight logged yet',W/2,H/2);
+    const yEl=document.getElementById('weightYAxis');if(yEl)yEl.innerHTML='';
     return;
   }
 
-  // Y range - include goal weight if set
-  const allVals=goalWeight?[...valid,goalWeight]:valid;
-  const rawMin=Math.min(...allVals),rawMax=Math.max(...allVals);
-  const yMin=Math.floor((rawMin-3)/5)*5;
-  const yMax=Math.ceil((rawMax+3)/5)*5;
+  const goal=S.user?.goalWeight||null;
+  const allV=goal?[...valid,goal]:valid;
+  const rawMin=Math.min(...allV), rawMax=Math.max(...allV);
+  const yMin=Math.floor((rawMin-2)/5)*5, yMax=Math.ceil((rawMax+2)/5)*5;
   const range=yMax-yMin||10;
+  const PH=H-BOTTOM-TOP;
 
-  // Update external y-axis div
+  // Y-axis labels
   const yEl=document.getElementById('weightYAxis');
   if(yEl){
-    const steps=[];
-    for(let v=yMax;v>=yMin;v-=5) steps.push(v);
+    const steps=[];for(let v=yMax;v>=yMin;v-=5)steps.push(v);
     yEl.innerHTML=steps.map(v=>`<span>${v}</span>`).join('');
     yEl.style.paddingBottom=BOTTOM+'px';
   }
 
-  const PW=CHARTW, PH=200-BOTTOM-10;
-  const n=data.length;
-  const xStep=PW/(n-1||1);
-
-  const toY=w=>10+(1-(w-yMin)/range)*PH;
+  const n=pts.length;
+  const xStep=W/(n-1||1);
   const toX=i=>i*xStep;
+  const toY=v=>TOP+(1-(v-yMin)/range)*PH;
 
-  // Grid lines
+  // Grid
   ctx.strokeStyle='#f3f4f6';ctx.lineWidth=1;
-  for(let v=yMin;v<=yMax;v+=5){
-    const y=toY(v);
-    ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(PW,y);ctx.stroke();
+  for(let v=yMin;v<=yMax;v+=5){ctx.beginPath();ctx.moveTo(0,toY(v));ctx.lineTo(W,toY(v));ctx.stroke();}
+
+  // Goal line
+  if(goal&&goal>=yMin&&goal<=yMax){
+    const gy=toY(goal);
+    ctx.save();ctx.strokeStyle='#f97316';ctx.lineWidth=1.5;ctx.setLineDash([6,4]);
+    ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(W,gy);ctx.stroke();
+    ctx.setLineDash([]);ctx.fillStyle='#f97316';ctx.font='bold 9px Poppins';ctx.textAlign='right';
+    ctx.fillText(goal+' kg',W-4,gy-4);ctx.restore();
   }
 
-  // GOAL LINE (dashed, orange)
-  if(goalWeight&&goalWeight>=yMin&&goalWeight<=yMax){
-    const gy=toY(goalWeight);
-    ctx.save();
-    ctx.strokeStyle='#f97316';ctx.lineWidth=1.5;ctx.setLineDash([6,4]);
-    ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(PW,gy);ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle='#f97316';ctx.font='bold 9px Poppins';ctx.textAlign='right';
-    ctx.fillText(goalWeight+' kg',PW-4,gy-4);
-    ctx.restore();
-  }
-
-  // Build point list
-  const pts=data.map((d,i)=>({x:toX(i),y:d.weight!==null?toY(d.weight):null,w:d.weight}));
-
-  // Green fill gradient under line
-  const grad=ctx.createLinearGradient(0,0,0,PH+10);
-  grad.addColorStop(0,'rgba(34,197,94,0.35)');grad.addColorStop(1,'rgba(34,197,94,0.02)');
-  ctx.fillStyle=grad;
-  const validPts=pts.filter(p=>p.y!==null);
+  // Gradient fill
+  const validPts=pts.map((v,i)=>v!==null?{x:toX(i),y:toY(v),v}:null).filter(Boolean);
   if(validPts.length>1){
-    ctx.beginPath();
+    const grad=ctx.createLinearGradient(0,0,0,PH+TOP);
+    grad.addColorStop(0,'rgba(34,197,94,0.3)');grad.addColorStop(1,'rgba(34,197,94,0.02)');
+    ctx.fillStyle=grad;ctx.beginPath();
     ctx.moveTo(validPts[0].x,validPts[0].y);
     validPts.forEach(p=>ctx.lineTo(p.x,p.y));
-    ctx.lineTo(validPts[validPts.length-1].x,PH+10);
-    ctx.lineTo(validPts[0].x,PH+10);
+    ctx.lineTo(validPts[validPts.length-1].x,PH+TOP);
+    ctx.lineTo(validPts[0].x,PH+TOP);
     ctx.closePath();ctx.fill();
   }
 
-  // Green line
+  // Line segments between non-null points
   ctx.strokeStyle='#22c55e';ctx.lineWidth=2.5;ctx.lineJoin='round';ctx.lineCap='round';
-  let started=false;
-  pts.forEach(p=>{
-    if(p.y===null){started=false;return;}
-    if(!started){ctx.beginPath();ctx.moveTo(p.x,p.y);started=true;}
-    else ctx.lineTo(p.x,p.y);
+  let seg=false;
+  pts.forEach((v,i)=>{
+    if(v===null){if(seg){ctx.stroke();seg=false;}return;}
+    if(!seg){ctx.beginPath();ctx.moveTo(toX(i),toY(v));seg=true;}
+    else ctx.lineTo(toX(i),toY(v));
   });
-  if(started)ctx.stroke();
+  if(seg)ctx.stroke();
 
-  // Dots + weight labels (above dot)
-  const showEvery=n<=7?1:n<=14?2:n<=31?5:1;
-  pts.forEach((p,i)=>{
-    if(p.y===null) return;
-    // Dot with white border
-    ctx.beginPath();ctx.arc(p.x,p.y,4.5,0,Math.PI*2);ctx.fillStyle='white';ctx.fill();
-    ctx.beginPath();ctx.arc(p.x,p.y,3.5,0,Math.PI*2);ctx.fillStyle='#16a34a';ctx.fill();
-    // Weight label above
-    if(i===0||i===pts.length-1||i%showEvery===0){
-      ctx.fillStyle='#1f2937';ctx.font='bold 9px Poppins';ctx.textAlign='center';
-      ctx.fillText(p.w+' kg',p.x,p.y-10);
+  // Dots + weight labels
+  const showEv=n<=7?1:n<=14?2:5;
+  pts.forEach((v,i)=>{
+    if(v===null)return;
+    const x=toX(i),y=toY(v);
+    // White border dot
+    ctx.beginPath();ctx.arc(x,y,5,0,Math.PI*2);ctx.fillStyle='white';ctx.fill();
+    ctx.beginPath();ctx.arc(x,y,3.5,0,Math.PI*2);ctx.fillStyle='#16a34a';ctx.fill();
+    // Weight label above dot
+    if(i===0||i===pts.length-1||i%showEv===0){
+      ctx.fillStyle='#1f2937';ctx.font='bold 10px Poppins';ctx.textAlign='center';
+      // Avoid clipping at edges
+      const lx=Math.max(20,Math.min(W-20,x));
+      ctx.fillText(v+' kg',lx,Math.max(12,y-9));
     }
   });
 
   // X-axis labels
-  ctx.fillStyle='#9ca3af';ctx.font='9px Poppins';ctx.textAlign='center';
-  xLabels.forEach((lbl,i)=>{
-    if(!lbl) return;
-    const x=toX(i);
-    ctx.fillText(lbl,x,200-6);
+  ctx.fillStyle='#9ca3af';ctx.font='9px Poppins';
+  labels.forEach((lbl,i)=>{
+    if(!lbl)return;
+    ctx.textAlign='center';
+    const lx=Math.max(15,Math.min(W-15,toX(i)));
+    ctx.fillText(lbl,lx,H-8);
   });
 }
 
-
-
-// ===== WEIGHT INPUT: init from profile data =====
 function initWeightInput(){
   const el=document.getElementById('newWeightInput');
   if(!el) return;
@@ -1906,6 +1947,147 @@ window.setCalPeriod      = setCalPeriod;
 // ===== INIT =====
 const stored=localStorage.getItem('bt_user');
 if(stored){const u=JSON.parse(stored);if(u.tdee){S.user=u;loadUserData();setTimeout(()=>{initWeightInput();renderStreakBadge();},100);}}
+
+
+
+
+
+// ===== MISSING UTILITY FUNCTIONS =====
+function prevStep(cur){
+  document.getElementById('step'+cur).style.display='none';
+  document.getElementById('step'+(cur-1)).style.display='block';
+}
+function selectGender(el, val){
+  document.querySelectorAll('.gender-option').forEach(o=>o.classList.remove('selected'));
+  el.classList.add('selected');
+  if(typeof qData !== 'undefined') qData.gender = val;
+}
+
+function toggleLogoutMenu(){
+  const dd = document.getElementById('logoutDropdown');
+  if(!dd) return;
+  dd.classList.toggle('open');
+  setTimeout(function(){
+    document.addEventListener('click', function closeDD(e){
+      if(!e.target.closest('#navAvatar') && !e.target.closest('#logoutDropdown')){
+        dd.classList.remove('open');
+        document.removeEventListener('click', closeDD);
+      }
+    });
+  }, 10);
+}
+
+function doLogout(){
+  try{
+    if(window._fb && window._fb.auth) window._fb.auth.signOut();
+  }catch(e){}
+  window._fbUser = null;
+  if(typeof S !== 'undefined'){ S.user=null; S.meals={ontbijt:[],lunch:[],tussendoortje:[],avondeten:[]}; S.weightLog=[]; S.calLog={}; S.macroLog={}; S.activities=[]; }
+  localStorage.removeItem('bt_user');
+  localStorage.removeItem('bt_data');
+  localStorage.removeItem('bt_lastWeight');
+  showAuthPage('loginPage');
+  document.getElementById('logoutDropdown')?.classList.remove('open');
+}
+
+// ===== CAMERA BARCODE SCANNER =====
+var _codeReader = null;
+function openCameraScanner(){
+  openBarcodeModal();
+  var area   = document.getElementById('cameraScanArea');
+  var status = document.getElementById('cameraScanStatus');
+  if(area)   area.style.display   = 'block';
+  if(status) status.style.display = 'block';
+  document.getElementById('barcodeResult').innerHTML = '';
+  if(typeof ZXing === 'undefined'){ showNotif('❌ Scanner niet beschikbaar'); return; }
+  try {
+    _codeReader = new ZXing.BrowserMultiFormatReader();
+    _codeReader.decodeFromConstraints(
+      {video:{facingMode:'environment'}},
+      document.getElementById('cameraPreview'),
+      function(result, err){
+        if(result){
+          var code = result.getText();
+          document.getElementById('barcodeInput').value = code;
+          stopCameraScan();
+          lookupBarcode(code);
+        }
+      }
+    );
+  } catch(e){ showNotif('❌ Camera niet beschikbaar'); stopCameraScan(); }
+}
+function stopCameraScan(){
+  if(_codeReader){ try{ _codeReader.reset(); }catch(e){} _codeReader=null; }
+  var area   = document.getElementById('cameraScanArea');
+  var status = document.getElementById('cameraScanStatus');
+  if(area)   area.style.display   = 'none';
+  if(status) status.style.display = 'none';
+}
+
+// ===== EXPOSE ALL FUNCTIONS GLOBALLY =====
+window.showAuthPage       = showAuthPage;
+window.setLang            = setLang;
+window.doLogin            = doLogin;
+window.doRegister         = doRegister;
+window.doLogout           = doLogout;
+window.toggleLogoutMenu   = toggleLogoutMenu;
+window.nextStep           = nextStep;
+window.prevStep           = prevStep;
+window.selectGender       = selectGender;
+window.goToCalorieStep    = goToCalorieStep;
+window.finishQuest        = finishQuest;
+window.finishQuestionnaire= finishQuest;
+window.selectGoal         = selectGoal;
+window.selectActivity     = selectActivity;
+window.selectGender       = selectGender;
+window.showAppPage        = showAppPage;
+window.openFoodSearch     = openFoodSearch;
+window.openMealModal      = openFoodSearch;
+window.closeMealModal     = function(){ closeModal('mealModal'); };
+window.closeModal         = closeModal;
+window.searchFood         = searchFood;
+window.selectFood         = selectFood;
+window.addFoodToMeal      = addFoodToMeal;
+window.addFood            = addFoodToMeal;
+window.addManualFood      = addManualFood;
+window.removeFood         = removeFood;
+window.updatePortionPreview = updatePortionPreview;
+window.setMealPortion     = updatePortionPreview;
+window.toggleMacros       = toggleMacros;
+window.openBarcodeModal   = openBarcodeModal;
+window.closeBarcodeModal  = function(){ stopCameraScan&&stopCameraScan(); closeModal('barcodeModal'); };
+window.lookupBarcode      = lookupBarcode;
+window.addBarcodeFood     = addBarcodeFood;
+window.openCameraScanner  = openCameraScanner;
+window.stopCameraScan     = stopCameraScan;
+window.openPhotoModal     = openPhotoModal;
+window.analyzePhoto       = analyzePhoto;
+window.addPhotoFoods      = addPhotoFoods;
+window.selectAct          = selectAct;
+window.calcActivity       = calcActivity;
+window.logActivity        = logActivity;
+window.saveActivity       = logActivity;
+window.logManualActivity  = logManualActivity;
+window.filterActivities   = filterActivities;
+window.logWeight          = logWeight;
+window.setCalPeriod       = setCalPeriod;
+window.setWeightPeriod    = setWeightPeriod;
+window.renderLogbook      = renderLogbook;
+window.showNotif          = showNotif;
+window.renderMeals        = renderMeals;
+window.saveDayLog         = saveDayLog;
+window.renderStreakBadge  = renderStreakBadge;
+window.showStreakCelebration = showStreakCelebration;
+window.updateDashboard    = function(){ renderMeals&&renderMeals(); renderCalBarChart&&renderCalBarChart(); renderStreakBadge&&renderStreakBadge(); };
+
 </script>
+<div id="streakCelebrate" class="streak-celebrate" style="display:none" onclick="this.style.display='none'">
+  <div class="streak-celebrate-card">
+    <span class="streak-fire">🔥</span>
+    <div class="streak-num" id="celebrateNum">1</div>
+    <div class="streak-msg" id="celebrateMsg" data-nl="dagen op rij gelogd! Ga zo door!" data-en="days logged in a row! Keep it up!">dagen op rij gelogd! Ga zo door!</div>
+    <button class="btn-primary" style="width:100%" onclick="document.getElementById('streakCelebrate').style.display='none'" data-nl="💪 Doorgaan!" data-en="💪 Keep going!">💪 Doorgaan!</button>
+  </div>
+</div>
 </body>
 </html>
