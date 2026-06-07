@@ -339,6 +339,8 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
 @keyframes bounce2{0%,100%{transform:translateY(0);}50%{transform:translateY(-10px);}}
 .streak-num{font-size:48px;font-weight:900;color:#f97316;font-family:'Nunito',sans-serif;}
 .streak-msg{font-size:16px;color:var(--gray-600);margin:8px 0 24px;}
+.streak-nav-btn{background:linear-gradient(135deg,#f97316,#ef4444)!important;color:white!important;border-radius:20px!important;padding:4px 10px!important;font-weight:800!important;font-size:13px!important;}
+.streak-nav-btn:hover{opacity:.9;}
 </style>
 </head>
 <body>
@@ -466,18 +468,22 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
       <button class="nav-link active" onclick="showAppPage('profilePage',this)">👤 <span data-nl="Profiel" data-en="Profile">Profiel</span></button>
       <button class="nav-link" onclick="showAppPage('foodPage',this)">🍽️ <span data-nl="Eten" data-en="Food">Eten</span></button>
       <button class="nav-link" onclick="showAppPage('activitiesPage',this)">🏃 <span data-nl="Activiteiten" data-en="Activities">Activiteiten</span></button>
-      <button class="nav-link" onclick="showAppPage('logbookPage',this)">📊 <span data-nl="Logboek" data-en="Logbook">Logboek</span> <span id="navStreak" style="font-size:11px;background:#f97316;color:white;border-radius:20px;padding:1px 6px;margin-left:4px;display:none"></span></button>
+      <button class="nav-link" onclick="showAppPage('logbookPage',this)">📊 <span data-nl="Logboek" data-en="Logbook">Logboek</span></button>
+      <button class="nav-link streak-nav-btn" id="navStreakBtn" style="display:none" onclick="showAppPage('profilePage',document.querySelectorAll('.nav-link')[0])">
+        <span id="navStreak"></span>
+      </button>
     </div>
     <div class="nav-right">
       <div style="display:flex;gap:6px">
         <button class="lang-btn-app active" onclick="setLangApp('nl',this)">NL</button>
         <button class="lang-btn-app" onclick="setLangApp('en',this)">EN</button>
       </div>
-      <div class="avatar" id="userAvatar">B</div>
-      <div class="logout-dropdown" id="logoutDropdown">
-      <div class="logout-item" onclick="doLogout()">🚪 <span data-nl="Uitloggen" data-en="Log out">Uitloggen</span></div>
+      <div class="avatar" id="userAvatar" onclick="toggleLogoutMenu()" style="position:relative;cursor:pointer">B
+        <div class="logout-dropdown" id="logoutDropdown">
+          <div class="logout-item" onclick="doLogout()">🚪 <span data-nl="Uitloggen" data-en="Log out">Uitloggen</span></div>
+        </div>
+      </div>
     </div>
-  </div>
   </nav>
 
   <!-- PROFILE PAGE -->
@@ -703,10 +709,7 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
         ⏹ <span data-nl="Camera stoppen" data-en="Stop camera">Camera stoppen</span>
       </button>
     </div>
-    <button class="btn-primary" style="margin-bottom:12px" onclick="openCameraScanner()">
-      📷 <span data-nl="Camera starten" data-en="Start camera">Camera starten</span>
-    </button>
-    <div id="cameraScanStatus" style="display:none;text-align:center;padding:8px;font-size:13px;color:var(--gray-400)">📷 Richt op barcode...</div>
+<div id="cameraScanStatus" style="display:none;text-align:center;padding:8px;font-size:13px;color:var(--gray-400)">📷 Richt op barcode...</div>
     <div class="barcode-scanner-sim" style="display:none"><div class="scan-anim">📷</div><p style="margin-top:12px;font-size:13px" data-nl="Camera vereist backend. Voer barcode handmatig in:" data-en="Camera requires backend. Enter barcode manually:">Camera vereist backend. Voer barcode handmatig in:</p></div>
     <label class="form-label" data-nl="BARCODE NUMMER" data-en="BARCODE NUMBER">BARCODE NUMMER</label>
     <div style="display:flex;gap:10px">
@@ -721,7 +724,18 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
 <div class="modal-overlay" id="photoModal">
   <div class="modal">
     <div class="modal-title">📷 <span data-nl="Foto analyseren" data-en="Analyze photo">Foto analyseren</span><button class="modal-close" onclick="closeModal('photoModal')">✕</button></div>
-    <div class="photo-drop" onclick="document.getElementById('photoFileInput').click()"><div style="font-size:48px;margin-bottom:8px">📷</div><div style="color:var(--gray-400);font-size:14px" data-nl="Klik om foto te uploaden" data-en="Click to upload a photo">Klik om foto te uploaden</div></div>
+    <div style="margin-bottom:16px">
+      <button class="btn-primary" style="width:100%;padding:20px;font-size:16px" onclick="document.getElementById('photoCameraInput').click()">
+        📷 <span data-nl="Foto maken met camera" data-en="Take photo with camera">Foto maken met camera</span>
+      </button>
+      <input type="file" id="photoCameraInput" accept="image/*" capture="environment" style="display:none" onchange="analyzePhoto(this)">
+      <div style="text-align:center;margin-top:12px">
+        <a href="#" onclick="document.getElementById('photoFileInput').click();return false" style="font-size:13px;color:var(--gray-400);text-decoration:underline">
+          <span data-nl="Of kies bestand" data-en="Or choose file">Of kies bestand</span>
+        </a>
+        <input type="file" id="photoFileInput" accept="image/*" style="display:none" onchange="analyzePhoto(this)">
+      </div>
+    </div><div style="color:var(--gray-400);font-size:14px" data-nl="Klik om foto te uploaden" data-en="Click to upload a photo">Klik om foto te uploaden</div></div>
     <input type="file" id="photoFileInput" accept="image/*" capture="environment" onchange="analyzePhoto(this)">
     <div class="ai-analyzing" id="aiAnalyzing"><div class="spinner" style="display:block;margin:0 auto 8px"></div><p data-nl="AI analyseert..." data-en="AI is analyzing...">AI analyseert...</p></div>
     <div id="photoResult"></div>
@@ -1686,10 +1700,11 @@ function calcStreak(){
 }
 
 function renderStreakBadge(){
-  // Also update nav streak badge
   const _navS = calcStreak();
   const navEl = document.getElementById('navStreak');
-  if(navEl){ if(_navS>0){navEl.textContent='🔥'+_navS;navEl.style.display='inline';} else navEl.style.display='none'; }
+  const navBtn = document.getElementById('navStreakBtn');
+  if(navEl) navEl.textContent = _navS > 0 ? '🔥 '+_navS : '';
+  if(navBtn) navBtn.style.display = _navS > 0 ? 'inline-flex' : 'none';
   const el=document.getElementById('streakBadge');
   if(!el) return;
   const streakVal=calcStreak();
@@ -1854,8 +1869,8 @@ function renderWeightChart(){
     if(i===0||i===pts.length-1||i%showEv===0){
       ctx.fillStyle='#1f2937';ctx.font='bold 10px Poppins';ctx.textAlign='center';
       // Avoid clipping at edges
-      const lx=Math.max(20,Math.min(W-20,x));
-      ctx.fillText(v+' kg',lx,Math.max(12,y-9));
+      const lx=Math.max(25,Math.min(W-25,x));
+      ctx.fillText(v+' kg',lx,Math.max(14,y-11));
     }
   });
 
