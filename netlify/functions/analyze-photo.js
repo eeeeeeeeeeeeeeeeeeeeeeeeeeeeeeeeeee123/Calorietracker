@@ -73,4 +73,3 @@ If you cannot identify food, return: {"items":[],"total":{"calories":0,"protein"
     };
   }
 };
-
