@@ -50,7 +50,7 @@ onAuthStateChanged(fbAuth, async (user) => {
 });
 </script>
 <!-- ZXing barcode scanner -->
-<script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
+<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js'"></script>
 <style>
 :root{--green:#22c55e;--green-dark:#16a34a;--green-light:#86efac;--green-xlight:#dcfce7;--gray-50:#f9fafb;--gray-100:#f3f4f6;--gray-200:#e5e7eb;--gray-400:#9ca3af;--gray-600:#4b5563;--gray-800:#1f2937;--blue:#3b82f6;--orange:#f97316;--red:#ef4444;--purple:#a855f7;--radius:12px;--shadow:0 4px 24px rgba(0,0,0,0.08);--shadow-lg:0 8px 40px rgba(0,0,0,0.12);}
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -489,6 +489,7 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
   <!-- PROFILE PAGE -->
   <div class="page active" id="profilePage">
     <div class="profile-hero">
+      <button onclick="doLogout()" style="position:absolute;top:16px;right:16px;background:rgba(255,255,255,0.2);border:none;color:white;padding:8px 14px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;z-index:2">🚪 <span data-nl="Uitloggen" data-en="Log out">Uitloggen</span></button>
       <div class="profile-name" id="heroName">Hey, Baran! 👋</div>
       <div class="profile-goal-badge" id="heroGoal">🎯 Doel: Afvallen</div>
       <div id="streakBadge" style="display:inline-block;margin-left:10px"></div>
@@ -547,10 +548,7 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
     </div>
     <div class="scan-bar">
       <button class="scan-btn" onclick="openPhotoModal()">📷 <span data-nl="Foto maken" data-en="Take photo">Foto maken</span></button>
-      <button class="scan-btn" onclick="openCameraScanner()">
-          📷 <span data-nl="Camera scan" data-en="Camera scan">Camera scan</span>
-        </button>
-        <button class="scan-btn" onclick="openBarcodeModal()">📊 <span data-nl="Barcode scannen" data-en="Scan barcode">Barcode scannen</span></button>
+        <button class="scan-btn" onclick="openCameraScanner()">📊 <span data-nl="Barcode scannen" data-en="Scan barcode">Barcode scannen</span></button>
     </div>
     <div class="meal-sections">
       <div class="meal-section"><div class="meal-header"><div class="meal-header-left"><div class="meal-icon" style="background:#fef9c3">🌅</div><div><div class="meal-title" data-nl="Ontbijt" data-en="Breakfast">Ontbijt</div><div class="meal-cals" id="cals-ontbijt">0 kcal</div></div></div></div><div class="meal-items" id="items-ontbijt"><div class="empty-state"><div class="empty-icon">🌅</div><span data-nl="Nog niets gelogd" data-en="Nothing logged yet">Nog niets gelogd</span></div></div><button class="meal-add-btn" onclick="openFoodSearch('ontbijt')">＋ <span data-nl="Voedsel toevoegen" data-en="Add food">Voedsel toevoegen</span></button></div>
@@ -702,7 +700,7 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
 <!-- BARCODE MODAL -->
 <div class="modal-overlay" id="barcodeModal">
   <div class="modal">
-    <div class="modal-title">📊 <span data-nl="Barcode scannen" data-en="Scan barcode">Barcode scannen</span><button class="modal-close" onclick="closeModal('barcodeModal')">✕</button></div>
+    <div class="modal-title">📊 <span data-nl="Barcode scannen" data-en="Scan barcode">Barcode scannen</span><button class="modal-close" onclick="stopCameraScan();closeModal('barcodeModal')">✕</button></div>
     <div id="cameraScanArea" style="display:none;margin-bottom:16px">
       <video id="cameraPreview" style="width:100%;border-radius:12px;max-height:220px;background:#000"></video>
       <button class="btn-sm" style="width:100%;margin-top:8px;background:var(--red);color:white;border:none" onclick="stopCameraScan()">
@@ -736,7 +734,7 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
         <input type="file" id="photoFileInput" accept="image/*" style="display:none" onchange="analyzePhoto(this)">
       </div>
     </div><div style="color:var(--gray-400);font-size:14px" data-nl="Klik om foto te uploaden" data-en="Click to upload a photo">Klik om foto te uploaden</div></div>
-    <input type="file" id="photoFileInput" accept="image/*" capture="environment" onchange="analyzePhoto(this)">
+    <input type="file" id="photoCameraInput2" accept="image/*" capture="environment" onchange="analyzePhoto(this)">
     <div class="ai-analyzing" id="aiAnalyzing"><div class="spinner" style="display:block;margin:0 auto 8px"></div><p data-nl="AI analyseert..." data-en="AI is analyzing...">AI analyseert...</p></div>
     <div id="photoResult"></div>
     <div style="background:var(--gray-50);border-radius:10px;padding:12px;font-size:12px;color:var(--gray-400);margin-top:8px">💡 <span data-nl="Voeg Gemini API key toe in je backend voor foto-herkenning." data-en="Add Gemini API key in your backend for photo recognition.">Voeg Gemini API key toe in je backend voor foto-herkenning.</span></div>
@@ -1398,6 +1396,10 @@ async function lookupBarcode(code){
         ${food.brand?`<div style="font-size:12px;color:var(--gray-400);margin-bottom:8px">${food.brand}</div>`:''}
         <div style="font-size:13px;color:var(--gray-600)">🔥 ${food.c} kcal &nbsp;|&nbsp; P: ${food.p}g &nbsp;K: ${food.k}g &nbsp;V: ${food.v}g</div>
         <div style="font-size:11px;color:var(--gray-400);margin-top:4px">per 100g</div>
+        <div style="margin-top:12px;display:flex;align-items:center;gap:8px">
+          <label style="font-size:13px;color:var(--gray-600);white-space:nowrap">${S.lang==='nl'?'Gram:':'Grams:'}</label>
+          <input type="number" id="bcGrams" class="form-input" value="100" min="1" max="9999" style="margin-bottom:0;flex:1">
+        </div>
         <button class="btn-primary" style="width:100%;margin-top:12px" onclick="addBarcodeFood(${JSON.stringify(food).replace(/"/g,'&quot;')})">
           + ${S.lang==='nl'?'Toevoegen':'Add'}
         </button>
@@ -1436,7 +1438,12 @@ function addBarcodeFood(food){
 }
 
 // ===== PHOTO =====
-function openPhotoModal(){document.getElementById('photoResult').innerHTML='';document.getElementById('aiAnalyzing').style.display='none';document.getElementById('photoModal').classList.add('open');}
+function openPhotoModal(){
+  document.getElementById('photoResult').innerHTML='';
+  document.getElementById('aiAnalyzing').style.display='none';
+  document.getElementById('photoModal').classList.add('open');
+  document.getElementById('photoCameraInput').click();
+}
 async function analyzePhoto(input){
   if(!input.files||!input.files[0])return;
   const file=input.files[0];
@@ -1509,12 +1516,6 @@ function selectAct(i,el){
   document.getElementById('activityCalcCard').style.display='block';
   updateDistanceVisibility();
   calcActivity();
-}
-function calcActivity(){
-  if(!S.selectedActivity)return;
-  const dur=parseFloat(document.getElementById('actDuration').value)||0;
-  const w=S.user?.weight||parseFloat(document.getElementById('actWeight').value)||75;
-  document.getElementById('burnedCalResult').textContent=Math.round(S.selectedActivity.m*w*(dur/60));
 }
 function logActivity(){
   if(!S.selectedActivity)return;
@@ -1969,8 +1970,11 @@ if(stored){const u=JSON.parse(stored);if(u.tdee){S.user=u;loadUserData();setTime
 
 // ===== MISSING UTILITY FUNCTIONS =====
 function prevStep(cur){
-  document.getElementById('step'+cur).style.display='none';
-  document.getElementById('step'+(cur-1)).style.display='block';
+  document.getElementById('step'+cur).classList.remove('active');
+  document.getElementById('step'+(cur-1)).classList.add('active');
+  document.getElementById('dot'+cur).classList.remove('active');
+  document.getElementById('dot'+(cur-1)).classList.remove('done');
+  document.getElementById('dot'+(cur-1)).classList.add('active');
 }
 function selectGender(el, val){
   document.querySelectorAll('.gender-option').forEach(o=>o.classList.remove('selected'));
@@ -1984,7 +1988,7 @@ function toggleLogoutMenu(){
   dd.classList.toggle('open');
   setTimeout(function(){
     document.addEventListener('click', function closeDD(e){
-      if(!e.target.closest('#navAvatar') && !e.target.closest('#logoutDropdown')){
+      if(!e.target.closest('#userAvatar') && !e.target.closest('#logoutDropdown')){
         dd.classList.remove('open');
         document.removeEventListener('click', closeDD);
       }
@@ -1994,7 +1998,7 @@ function toggleLogoutMenu(){
 
 function doLogout(){
   try{
-    if(window._fb && window._fb.auth) window._fb.auth.signOut();
+    if(window._fb && window._fb.signOut && window._fb.fbAuth) window._fb.signOut(window._fb.fbAuth);
   }catch(e){}
   window._fbUser = null;
   if(typeof S !== 'undefined'){ S.user=null; S.meals={ontbijt:[],lunch:[],tussendoortje:[],avondeten:[]}; S.weightLog=[]; S.calLog={}; S.macroLog={}; S.activities=[]; }
@@ -2014,22 +2018,40 @@ function openCameraScanner(){
   if(area)   area.style.display   = 'block';
   if(status) status.style.display = 'block';
   document.getElementById('barcodeResult').innerHTML = '';
-  if(typeof ZXing === 'undefined'){ showNotif('❌ Scanner niet beschikbaar'); return; }
-  try {
-    _codeReader = new ZXing.BrowserMultiFormatReader();
-    _codeReader.decodeFromConstraints(
-      {video:{facingMode:'environment'}},
-      document.getElementById('cameraPreview'),
-      function(result, err){
-        if(result){
-          var code = result.getText();
-          document.getElementById('barcodeInput').value = code;
-          stopCameraScan();
-          lookupBarcode(code);
+  function startScan(){
+    try {
+      _codeReader = new ZXing.BrowserMultiFormatReader();
+      _codeReader.decodeFromConstraints(
+        {video:{facingMode:'environment'}},
+        document.getElementById('cameraPreview'),
+        function(result, err){
+          if(result){
+            var code = result.getText();
+            document.getElementById('barcodeInput').value = code;
+            stopCameraScan();
+            lookupBarcode(code);
+          }
         }
+      );
+    } catch(e){ showNotif('❌ Camera niet beschikbaar'); stopCameraScan(); }
+  }
+  if(typeof ZXing === 'undefined'){
+    // Library may still be loading (e.g. fallback CDN kicked in) — retry briefly before giving up
+    var tries = 0;
+    var waitForZXing = setInterval(function(){
+      tries++;
+      if(typeof ZXing !== 'undefined'){
+        clearInterval(waitForZXing);
+        startScan();
+      } else if(tries >= 10){
+        clearInterval(waitForZXing);
+        showNotif('❌ Scanner niet beschikbaar');
+        stopCameraScan();
       }
-    );
-  } catch(e){ showNotif('❌ Camera niet beschikbaar'); stopCameraScan(); }
+    }, 300);
+    return;
+  }
+  startScan();
 }
 function stopCameraScan(){
   if(_codeReader){ try{ _codeReader.reset(); }catch(e){} _codeReader=null; }
@@ -2054,7 +2076,6 @@ window.finishQuest        = finishQuest;
 window.finishQuestionnaire= finishQuest;
 window.selectGoal         = selectGoal;
 window.selectActivity     = selectActivity;
-window.selectGender       = selectGender;
 window.showAppPage        = showAppPage;
 window.openFoodSearch     = openFoodSearch;
 window.openMealModal      = openFoodSearch;
