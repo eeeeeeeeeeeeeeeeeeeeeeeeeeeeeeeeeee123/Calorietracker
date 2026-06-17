@@ -1,4 +1,4 @@
-// Netlify Function: proxies Open Food Facts to bypass browser CORS
+// Netlify Function: proxies Open Food Facts (Search-a-licious) to bypass browser CORS
 exports.handler = async function(event) {
   const query = event.queryStringParameters?.q || '';
   const page  = event.queryStringParameters?.page || '1';
@@ -12,13 +12,14 @@ exports.handler = async function(event) {
   }
 
   try {
+    // NOTE: The legacy world.openfoodfacts.org/cgi/search.pl endpoint was
+    // deprecated by Open Food Facts (now returns HTTP 503). Full-text search
+    // now lives on their new Search-a-licious service.
     const url =
-      `https://world.openfoodfacts.org/cgi/search.pl` +
-      `?search_terms=${encodeURIComponent(query)}` +
-      `&search_simple=1&action=process&json=1` +
-      `&page_size=40&page=${page}` +
-      `&fields=product_name,brands,nutriments,countries_tags` +
-      `&lc=nl`;
+      `https://search.openfoodfacts.org/search` +
+      `?q=${encodeURIComponent(query)}` +
+      `&langs=nl&page_size=40&page=${page}` +
+      `&fields=product_name,brands,nutriments,countries_tags`;
 
     const resp = await fetch(url, {
       headers: { 'User-Agent': 'CalorieTracker/1.0 (contact@example.com)' }
@@ -27,8 +28,11 @@ exports.handler = async function(event) {
     if (!resp.ok) throw new Error(`OFF returned ${resp.status}`);
     const data = await resp.json();
 
+    // Search-a-licious returns results under "hits"
+    const rawProducts = data.hits || data.products || [];
+
     // Clean & filter products
-    const products = (data.products || [])
+    const products = rawProducts
       .filter(p =>
         p.product_name &&
         p.nutriments &&
