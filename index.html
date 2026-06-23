@@ -1322,25 +1322,68 @@ function renderFoodResults(items,isPopular=false){
     </div>`).join('');
 }
 
+// Estimate the grams of "1 portion" (1 piece/serving) from a food name.
+// Open Food Facts barely provides serving data, so we match common foods by
+// keyword. Returns grams, or null if we have no sensible guess.
+function guessServing(name){
+  const n=(name||'').toLowerCase();
+  const rules=[
+    [/\bpizza\b/,350],[/wrap|tortilla|burrito/,70],[/croissant/,60],[/stokbrood|baguette/,80],
+    [/boterham|cracker|beschuit/,35],[/\bbrood\b|broodje|bun|bagel/,40],
+    [/koek|biscuit|cookie|speculaas|stroopwafel/,20],[/mueslireep|liga|reep|granola.?bar/,25],
+    [/cake|gebak|taart|muffin|donut|appelflap/,80],
+    [/banaan/,120],[/appel|peer/,150],[/sinaasappel|mandarijn/,130],[/druif|aardbei|bes/,100],
+    [/\bei\b|eieren/,60],[/kipfilet|kip\b|kalkoen/,150],[/gehakt|burger|hamburger|frikandel|kroket|worst/,90],
+    [/zalm|tonijn|vis\b|haring|garnaal/,125],
+    [/yoghurt|yogurt|kwark|skyr|kwarkje/,150],[/\bkaas\b|plak kaas/,20],
+    [/chocolade|chocola|\breep\b|bonbon/,25],[/chips|nootjes|noten|pinda|borrelnoot/,30],
+    [/snoep|drop|winegum|haribo|zuurtje/,20],[/ijs|ijsje|magnum/,90],
+    [/melk|drank|sap|cola|fris|frisdrank|limonade|smoothie|shake|thee|koffie|water/,200],
+    [/rijst|pasta|spaghetti|noedel|couscous|quinoa/,200],[/patat|friet|frietjes/,150],
+    [/soep/,250],[/pannenkoek|poffertje/,80],[/havermout|muesli|cruesli|cornflakes/,50],
+    [/pindakaas|hagelslag|jam|nutella|smeerkaas/,15]
+  ];
+  for(const [re,g] of rules){ if(re.test(n)) return g; }
+  return null;
+}
 function selectFood(i){
   const food=window._searchResults[i];
   S.selectedFood=food;
   document.getElementById('portionFoodName').textContent=food.n;
   document.getElementById('portionGrams').value=100;
-  // Prefill the portion: prefer the real package size from Open Food Facts,
-  // then a known standard portion, otherwise default 100g.
+  // Prefill "1 portion": prefer a known exact portion, then a keyword guess,
+  // then the package size from OFF, otherwise 100g. Always editable.
   const hintEl = document.getElementById('portionHint');
   const stdPortions = {'Ei (heel)':60,'Banaan':120,'Appel':150,'Brood':35,'Rijst (gekookt)':180,'Pasta (gekookt)':200,'Kipfilet (gegrild)':150,'Melk':200,'Yoghurt naturel':150,'Griekse yoghurt 0%':150,'Kwark (mager)':150,'Skyr':150,'Pindakaas':15,'Havermout (droog)':50,'Chips naturel':25,'Chocolade':30};
+  const guess = food ? guessServing(food.n) : null;
   let portion = null, hint = '';
-  if(food && food.pg && food.pg > 0){
-    portion = food.pg;
-    hint = S.lang==='nl' ? '💡 Hele verpakking ≈ '+portion+'g' : '💡 Whole pack ≈ '+portion+'g';
-  } else if(food && stdPortions[food.n]){
+  if(food && stdPortions[food.n]){
     portion = stdPortions[food.n];
-    hint = S.lang==='nl' ? '💡 1 portie ≈ '+portion+'g' : '💡 1 serving ≈ '+portion+'g';
+    hint = S.lang==='nl' ? '💡 1 portie ≈ '+portion+'g (pas aan indien nodig)' : '💡 1 serving ≈ '+portion+'g (adjust if needed)';
+  } else if(guess){
+    portion = guess;
+    hint = S.lang==='nl' ? '💡 1 portie ≈ '+portion+'g (pas aan indien nodig)' : '💡 1 serving ≈ '+portion+'g (adjust if needed)';
+  } else if(food && food.pg && food.pg > 0){
+    portion = food.pg;
+    hint = S.lang==='nl' ? '💡 1 portie ≈ '+portion+'g (hele verpakking)' : '💡 1 serving ≈ '+portion+'g (whole pack)';
   }
   if(hintEl) hintEl.textContent = hint;
   document.getElementById('portionGrams').value = portion || 100;
+  // Refine the portion in the background with Nutritionix's real serving weight.
+  // If it answers (and the user hasn't picked another item), update the field.
+  if(food){
+    const reqName = food.n;
+    fetch('/.netlify/functions/serving-lookup?q='+encodeURIComponent(reqName))
+      .then(r=>r.json())
+      .then(d=>{
+        if(d && d.grams && S.selectedFood && S.selectedFood.n===reqName){
+          document.getElementById('portionGrams').value = d.grams;
+          if(hintEl) hintEl.textContent = (S.lang==='nl'?'💡 1 portie ≈ '+d.grams+'g (pas aan indien nodig)':'💡 1 serving ≈ '+d.grams+'g (adjust if needed)');
+          updatePortionPreview();
+        }
+      })
+      .catch(()=>{});
+  }
   updatePortionPreview();
   document.getElementById('portionSelect').classList.add('visible');
   document.querySelectorAll('.search-result-item').forEach((el,idx)=>{
