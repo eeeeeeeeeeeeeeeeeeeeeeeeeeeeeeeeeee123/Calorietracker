@@ -1,11 +1,14 @@
+// Netlify Function: food-photo analysis via Groq (Llama 4 Scout vision).
+// Groq has a usable free tier in the EU, unlike Gemini's free tier (limit 0 here).
+// Set GROQ_API_KEY in Netlify > Site settings > Environment variables.
 exports.handler = async function(event) {
   if (event.httpMethod !== 'POST') return { statusCode:405, body:'Method not allowed' };
 
-  const GEMINI_KEY = process.env.GEMINI_API_KEY;
-  if (!GEMINI_KEY) return {
+  const GROQ_KEY = process.env.GROQ_API_KEY;
+  if (!GROQ_KEY) return {
     statusCode: 500,
     headers: { 'Access-Control-Allow-Origin': '*' },
-    body: JSON.stringify({ error: 'GEMINI_API_KEY not set in Netlify environment variables' })
+    body: JSON.stringify({ error: 'GROQ_API_KEY niet ingesteld in Netlify environment variables' })
   };
 
   let body;
@@ -32,32 +35,50 @@ Respond ONLY with valid JSON in this exact format, no other text:
 If you cannot identify food, return: {"items":[],"total":{"calories":0,"protein":0,"carbs":0,"fat":0}}`;
 
     const resp = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`,
+      'https://api.groq.com/openai/v1/chat/completions',
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${GROQ_KEY}`
+        },
         body: JSON.stringify({
-          contents: [{
-            parts: [
-              { text: prompt },
-              { inline_data: { mime_type: mimeType, data: imageBase64 } }
+          model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+          temperature: 0.1,
+          max_tokens: 1024,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: `data:${mimeType};base64,${imageBase64}` } }
             ]
-          }],
-          generationConfig: { temperature: 0.1, maxOutputTokens: 1024 }
+          }]
         })
       }
     );
 
     const data = await resp.json();
-    if (!resp.ok) throw new Error(data.error?.message || 'Gemini API error');
+    if (!resp.ok) {
+      const raw = data.error?.message || 'Groq API error';
+      const isQuota = resp.status === 429 || /quota|rate.?limit|exceeded/i.test(raw);
+      return {
+        statusCode: resp.status || 500,
+        headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          error: isQuota
+            ? 'De AI-fotoanalyse heeft even zijn limiet bereikt. Probeer het zo opnieuw of voer het eten handmatig in.'
+            : raw
+        })
+      };
+    }
 
-    let text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    // Strip markdown code blocks if present
+    let text = data.choices?.[0]?.message?.content || '';
+    // Strip markdown code fences if present
     text = text.replace(/```json\n?/g,'').replace(/```\n?/g,'').trim();
 
     let result;
     try { result = JSON.parse(text); }
-    catch(e) { throw new Error('Could not parse Gemini response as JSON'); }
+    catch(e) { throw new Error('Kon het AI-antwoord niet als JSON lezen'); }
 
     return {
       statusCode: 200,
