@@ -816,6 +816,12 @@ const FOODS = [
   {n:'Whey proteïne',c:120,p:25,k:3,v:2},{n:'Caseine proteïne',c:118,p:24,k:4,v:1},{n:'Plant proteïne',c:115,p:22,k:5,v:2},{n:'Proteïnereep',c:200,p:20,k:20,v:7},{n:'Eiwitbrood',c:215,p:18,k:22,v:5},{n:'Proteïnepudding',c:100,p:15,k:7,v:2},{n:'Eiwitpasta',c:145,p:22,k:14,v:2},
   // === SUPERMARKT ===
   {n:'AH Kipfilet naturel',c:110,p:24,k:0,v:2},{n:'AH Gehakt half om half',c:250,p:22,k:0,v:18},{n:'AH Skyr naturel',c:63,p:11,k:4,v:0},{n:'Unox knakworst',c:290,p:11,k:1,v:26},{n:'Unox rookworst',c:295,p:14,k:1,v:26},{n:'Campina kwark mager',c:67,p:11,k:4,v:0},{n:'Optimel kwark',c:55,p:8,k:5,v:0},{n:'Vifit proteïne drink',c:80,p:12,k:6,v:1},{n:'Kinder Bueno',c:555,p:7,k:57,v:33},{n:'Liga koek',c:402,p:8,k:65,v:13},{n:'Sultana rozijnenkoek',c:373,p:6,k:71,v:7},{n:'Belvita ontbijtkoek',c:428,p:8,k:69,v:13},
+  // === GANGBARE NAMEN (op naam zoeken) ===
+  {n:'Boterham wit',c:265,p:8,k:50,v:3},{n:'Boterham bruin',c:250,p:9,k:44,v:3},{n:'Boterham volkoren',c:247,p:9,k:41,v:3},{n:'Snee brood',c:250,p:9,k:44,v:3},{n:'Krentenbol',c:280,p:9,k:55,v:3},{n:'Broodje wit',c:275,p:9,k:53,v:3},{n:'Broodje bruin',c:255,p:9,k:47,v:3},{n:'Kaiserbroodje',c:270,p:9,k:51,v:3},{n:'Broodje gezond',c:230,p:11,k:25,v:9},
+  {n:'Ontbijtkoek',c:330,p:4,k:72,v:2},{n:'Gevulde koek',c:420,p:6,k:58,v:18},{n:'Tompouce',c:350,p:3,k:45,v:17},{n:'Appeltaart',c:240,p:3,k:35,v:10},{n:'Slagroomtaart',c:330,p:4,k:35,v:19},{n:'Oliebol',c:270,p:5,k:35,v:12},{n:'Poffertjes',c:280,p:6,k:40,v:10},{n:'Wentelteefje',c:210,p:7,k:28,v:8},{n:'Cruesli',c:450,p:9,k:65,v:16},
+  {n:'Saucijzenbroodje',c:330,p:9,k:28,v:20},{n:'Worstenbroodje',c:320,p:10,k:30,v:18},{n:'Kaasbroodje',c:350,p:11,k:33,v:19},
+  {n:'Kaassouffle',c:290,p:8,k:28,v:16},{n:'Mexicano',c:280,p:11,k:18,v:18},{n:'Eierbal',c:230,p:9,k:18,v:13},{n:'Berenhap',c:270,p:12,k:16,v:18},{n:'Frikandel speciaal',c:265,p:12,k:14,v:18},{n:'Patatje oorlog',c:290,p:4,k:35,v:15},{n:'Kipcorn',c:250,p:11,k:18,v:14},{n:'Bamischijf',c:230,p:5,k:28,v:11},{n:'Nasischijf',c:225,p:5,k:29,v:10},{n:'Pizzapunt',c:250,p:11,k:33,v:8},
+  {n:'Milkshake',c:110,p:3,k:18,v:3},{n:'Spa rood',c:0,p:0,k:0,v:0},{n:'Limonade',c:30,p:0,k:8,v:0},{n:'Ranja',c:30,p:0,k:8,v:0},{n:'Warme chocolademelk',c:90,p:3,k:14,v:2},{n:'Dubbelfris',c:23,p:0,k:5,v:0},
 ];
 
 
@@ -1328,20 +1334,35 @@ function renderFoodResults(items,isPopular=false){
 function guessServing(name){
   const n=(name||'').toLowerCase();
   const rules=[
-    [/\bpizza\b/,350],[/wrap|tortilla|burrito/,70],[/croissant/,60],[/stokbrood|baguette/,80],
-    [/boterham|cracker|beschuit/,35],[/\bbrood\b|broodje|bun|bagel/,40],
+    // --- brood & bakkerij (specifiek eerst) ---
+    [/pizzapunt|pizza punt/,125],[/\bpizza\b/,350],
+    [/saucijzenbroodje|worstenbroodje|kaasbroodje/,90],
+    [/krentenbol|kaiserbroodje|broodje|\bbol\b|bun|bagel|puntje/,60],
+    [/boterham|snee brood|\bsnee\b/,35],[/stokbrood|baguette/,80],[/\bbrood\b/,35],
+    [/cracker|beschuit|knackebrod|rijstwafel/,12],
+    [/wrap|tortilla|burrito|loempia/,70],[/croissant/,60],[/tosti/,90],
+    // --- zoet gebak ---
+    [/ontbijtkoek/,30],[/tompouce|tompoes/,100],[/oliebol/,90],[/gevulde koek/,90],
     [/koek|biscuit|cookie|speculaas|stroopwafel/,20],[/mueslireep|liga|reep|granola.?bar/,25],
-    [/cake|gebak|taart|muffin|donut|appelflap/,80],
-    [/banaan/,120],[/appel|peer/,150],[/sinaasappel|mandarijn/,130],[/druif|aardbei|bes/,100],
-    [/\bei\b|eieren/,60],[/kipfilet|kip\b|kalkoen/,150],[/gehakt|burger|hamburger|frikandel|kroket|worst/,90],
-    [/zalm|tonijn|vis\b|haring|garnaal/,125],
+    [/cake|gebak|taart|muffin|donut|appelflap|wentelteefje/,80],[/pannenkoek|poffertje/,80],
+    // --- fruit ---
+    [/banaan/,120],[/appel|peer/,150],[/sinaasappel|mandarijn/,130],[/druif|aardbei|\bbes/,100],
+    // --- eiwit / vlees / vis ---
+    [/\bei\b|eieren/,60],[/kipfilet|\bkip\b|kalkoen/,150],
+    [/gehakt|burger|hamburger|frikandel|kroket|\bworst|mexicano|eierbal|berenhap|kipcorn/,90],
+    [/bamischijf|nasischijf|kaassouffle/,80],
+    [/zalm|tonijn|\bvis\b|haring|garnaal/,125],
+    // --- zuivel ---
     [/yoghurt|yogurt|kwark|skyr|kwarkje/,150],[/\bkaas\b|plak kaas/,20],
+    // --- snacks / snoep ---
     [/chocolade|chocola|\breep\b|bonbon/,25],[/chips|nootjes|noten|pinda|borrelnoot/,30],
-    [/snoep|drop|winegum|haribo|zuurtje/,20],[/ijs|ijsje|magnum/,90],
-    [/melk|drank|sap|cola|fris|frisdrank|limonade|smoothie|shake|thee|koffie|water/,200],
+    [/snoep|drop|winegum|haribo|zuurtje/,20],[/\bijs\b|ijsje|magnum/,90],
+    // --- dranken ---
+    [/melk|drank|\bsap\b|cola|fris|limonade|ranja|dubbelfris|smoothie|shake|thee|koffie|ayran|water/,200],
+    // --- basis ---
     [/rijst|pasta|spaghetti|noedel|couscous|quinoa/,200],[/patat|friet|frietjes/,150],
-    [/soep/,250],[/pannenkoek|poffertje/,80],[/havermout|muesli|cruesli|cornflakes/,50],
-    [/pindakaas|hagelslag|jam|nutella|smeerkaas/,15]
+    [/soep/,250],[/havermout|muesli|cruesli|cornflakes/,50],
+    [/pindakaas|hagelslag|\bjam\b|nutella|smeerkaas/,15]
   ];
   for(const [re,g] of rules){ if(re.test(n)) return g; }
   return null;
