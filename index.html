@@ -546,6 +546,20 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
         </div>
       </div>
     </div>
+    <div class="water-card" style="background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);padding:12px 16px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <div style="display:flex;align-items:center;gap:10px;min-width:0">
+        <div style="font-size:22px">💧</div>
+        <div>
+          <div style="font-weight:700;font-size:14px" data-nl="Water" data-en="Water">Water</div>
+          <div id="waterGlasses" style="font-size:15px;letter-spacing:2px;margin-top:2px"></div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="font-size:13px;color:var(--gray-400);white-space:nowrap"><span id="waterCount">0</span>/<span id="waterGoal">8</span></div>
+        <button onclick="addWater(-1)" style="width:34px;height:34px;border-radius:50%;border:2px solid var(--gray-200);background:#fff;font-size:18px;font-weight:700;cursor:pointer;color:var(--gray-600)">−</button>
+        <button onclick="addWater(1)" style="width:34px;height:34px;border-radius:50%;border:none;background:var(--blue);color:#fff;font-size:18px;font-weight:700;cursor:pointer">＋</button>
+      </div>
+    </div>
     <div class="scan-bar">
       <button class="scan-btn" onclick="openPhotoModal()">📷 <span data-nl="Foto maken" data-en="Take photo">Foto maken</span></button>
         <button class="scan-btn" onclick="openBarcodeModal()">📊 <span data-nl="Barcode scannen" data-en="Scan barcode">Barcode scannen</span></button>
@@ -676,6 +690,11 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
         <span style="font-size:13px;font-weight:600;color:var(--gray-600)">g</span>
         <div class="portion-cal-preview" id="portionCalPreview">— kcal</div>
       </div>
+      <div style="display:flex;gap:6px;justify-content:center;margin:8px 0">
+        <button type="button" onclick="setPortion(0.5)" style="padding:6px 12px;border:2px solid var(--gray-200);background:#fff;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;color:var(--gray-600)" data-nl="½ portie" data-en="½ serving">½ portie</button>
+        <button type="button" onclick="setPortion(1)" style="padding:6px 12px;border:2px solid var(--gray-200);background:#fff;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;color:var(--gray-600)" data-nl="1 portie" data-en="1 serving">1 portie</button>
+        <button type="button" onclick="setPortion(2)" style="padding:6px 12px;border:2px solid var(--gray-200);background:#fff;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;color:var(--gray-600)" data-nl="2 porties" data-en="2 servings">2 porties</button>
+      </div>
       <button class="btn-primary" style="margin-top:8px" onclick="addFoodToMeal()" data-nl="Toevoegen ✓" data-en="Add ✓">Toevoegen ✓</button>
     </div>
     <!-- MANUAL FOOD ADD -->
@@ -773,7 +792,8 @@ const S = {
   lang:'nl', user:null,
   meals:{ontbijt:[],lunch:[],tussendoortje:[],avondeten:[]},
   activities:[], weightLog:[], calLog:{}, macroLog:{},
-  selectedActivity:null, currentMeal:null, selectedFood:null, calPeriod:'week'
+  recentFoods:[], favorites:[], water:{date:'',count:0,goal:8},
+  selectedActivity:null, currentMeal:null, selectedFood:null, selectedPortion:100, editing:null, calPeriod:'week'
 };
 
 // ===== 400+ FOOD DATABASE =====
@@ -1187,11 +1207,12 @@ function launchApp(){
 
 function loadUserData(){
   const d=localStorage.getItem('bt_data');
-  if(d){const p=JSON.parse(d);S.meals=p.meals||S.meals;S.activities=p.activities||[];S.weightLog=p.weightLog||[];S.calLog=p.calLog||{};S.macroLog=p.macroLog||{};}
+  if(d){const p=JSON.parse(d);S.meals=p.meals||S.meals;S.activities=p.activities||[];S.weightLog=p.weightLog||[];S.calLog=p.calLog||{};S.macroLog=p.macroLog||{};S.recentFoods=p.recentFoods||[];S.favorites=p.favorites||[];S.water=p.water||{date:'',count:0,goal:8};}
+  ensureWaterToday();
 }
 async function saveData(){
   if(S.user)localStorage.setItem('bt_user',JSON.stringify(S.user));
-  const dataObj={meals:S.meals,activities:S.activities,weightLog:S.weightLog,calLog:S.calLog,macroLog:S.macroLog};
+  const dataObj={meals:S.meals,activities:S.activities,weightLog:S.weightLog,calLog:S.calLog,macroLog:S.macroLog,recentFoods:S.recentFoods,favorites:S.favorites,water:S.water};
   localStorage.setItem('bt_data',JSON.stringify(dataObj));
   // Also save to Firestore if logged in
   const uid=window._fbUser?.uid||S.user?.uid;
@@ -1252,12 +1273,85 @@ function openFoodSearch(meal){
   document.getElementById('foodSearchResults').innerHTML='';
   document.getElementById('portionSelect').classList.remove('visible');
   document.getElementById('foodSearchModal').classList.add('open');
-  // Show popular items immediately
-  const _pop=['Ei (heel)','Banaan','Rijst (gekookt)','Havermout (droog)','Kipfilet (gegrild)','Volkoren brood','Witbrood','Griekse yoghurt 0%','Skyr','Kwark (mager)','Appel','Pasta (gekookt)','Tonijn (blik in water)','Zalm (vers)','Proteïneshake (melk)','Avocado','Pindakaas','Halfvolle melk','Aardappel','Zoete aardappel','Banaan','Sinaasappel','Blauwe bessen','Haverdrank'];
-  const _popItems=_pop.map(n=>FOODS.find(f=>f.n===n)).filter(Boolean);
-  window._searchResults=_popItems;
-  renderFoodResults(_popItems,true);
+  renderStartView(); // favorites + recent + popular
   setTimeout(()=>document.getElementById('foodSearchInput').focus(),100);
+}
+
+// Start view (empty search): your favorites, your recents, then popular foods.
+const POPULAR_NAMES=['Ei (heel)','Banaan','Boterham volkoren','Havermout (droog)','Kipfilet (gegrild)','Volkoren brood','Witbrood','Griekse yoghurt 0%','Skyr','Kwark (mager)','Appel','Pasta (gekookt)','Tonijn (blik in water)','Zalm (vers)','Proteïneshake (melk)','Avocado','Pindakaas','Halfvolle melk','Aardappel','Sinaasappel','Blauwe bessen','Haverdrank'];
+function foodRowHTML(f,idx,favSet){
+  const isFav=favSet.has(f.n.toLowerCase());
+  return `<div class="search-result-item" onclick="selectFood(${idx})">
+      <div><div class="result-name">${f.n}</div><div class="result-details">P:${f.p}g · K:${f.k}g · V:${f.v}g | per 100g</div></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="result-cal">${f.c} kcal</div>
+        <span onclick="event.stopPropagation();toggleFav(${idx})" title="Favoriet" style="cursor:pointer;font-size:18px;line-height:1">${isFav?'⭐':'☆'}</span>
+      </div>
+    </div>`;
+}
+function renderStartView(){
+  const favSet=new Set((S.favorites||[]).map(f=>f.n.toLowerCase()));
+  const fav=(S.favorites||[]).slice();
+  const recent=(S.recentFoods||[]).filter(f=>!favSet.has(f.n.toLowerCase()));
+  const taken=new Set([...fav,...recent].map(f=>f.n.toLowerCase()));
+  const popular=POPULAR_NAMES.map(n=>FOODS.find(f=>f.n===n)).filter(Boolean).filter(f=>!taken.has(f.n.toLowerCase()));
+  const combined=[...fav,...recent,...popular];
+  window._searchResults=combined;
+  const el=document.getElementById('foodSearchResults');
+  let idx=0;
+  const hdr=t=>'<div style="font-size:11px;font-weight:700;color:var(--gray-400);padding:6px 12px 4px;letter-spacing:.5px">'+t+'</div>';
+  const section=(title,arr)=>{ if(!arr.length) return ''; let s=hdr(title); for(const f of arr){ s+=foodRowHTML(f,idx,favSet); idx++; } return s; };
+  let html='';
+  html+=section(S.lang==='nl'?'⭐ FAVORIETEN':'⭐ FAVORITES',fav);
+  html+=section(S.lang==='nl'?'🕘 RECENT':'🕘 RECENT',recent);
+  html+=section(S.lang==='nl'?'🔥 POPULAIR':'🔥 POPULAR',popular);
+  el.innerHTML=html;
+}
+function toggleFav(idx){
+  const f=window._searchResults && window._searchResults[idx];
+  if(!f) return;
+  const key=f.n.toLowerCase();
+  const i=(S.favorites||[]).findIndex(x=>x.n.toLowerCase()===key);
+  if(i>=0) S.favorites.splice(i,1);
+  else { S.favorites=S.favorites||[]; S.favorites.unshift({n:f.n,c:f.c,p:f.p,k:f.k,v:f.v}); }
+  saveData();
+  const q=document.getElementById('foodSearchInput').value;
+  if(!q || q.length<1) renderStartView();
+  else renderFoodResults(window._searchResults);
+}
+function recordRecent(food){
+  if(!food || !food.n) return;
+  S.recentFoods=S.recentFoods||[];
+  const key=food.n.toLowerCase();
+  S.recentFoods=S.recentFoods.filter(f=>f.n.toLowerCase()!==key);
+  S.recentFoods.unshift({n:food.n,c:food.c,p:food.p,k:food.k,v:food.v});
+  if(S.recentFoods.length>12) S.recentFoods=S.recentFoods.slice(0,12);
+}
+function setPortion(factor){
+  const base=S.selectedPortion||100;
+  const el=document.getElementById('portionGrams');
+  if(el){ el.value=Math.round(base*factor); updatePortionPreview(); }
+}
+// ===== WATER =====
+function ensureWaterToday(){
+  if(!S.water) S.water={date:'',count:0,goal:8};
+  const t=todayStr();
+  if(S.water.date!==t){ S.water.date=t; S.water.count=0; }
+  if(!S.water.goal) S.water.goal=8;
+}
+function renderWater(){
+  ensureWaterToday();
+  const w=S.water;
+  const c=document.getElementById('waterCount'); if(c) c.textContent=w.count;
+  const goal=document.getElementById('waterGoal'); if(goal) goal.textContent=w.goal;
+  const g=document.getElementById('waterGlasses');
+  if(g){ const filled=Math.min(w.count,w.goal); g.textContent='💧'.repeat(filled)+(w.count>w.goal?' +'+(w.count-w.goal):''); if(w.count===0) g.textContent=(S.lang==='nl'?'Nog geen glazen':'No glasses yet'); }
+}
+function addWater(d){
+  ensureWaterToday();
+  S.water.count=Math.max(0,S.water.count+d);
+  saveData();
+  renderWater();
 }
 
 // Relevance score: how well a food name matches the typed query.
@@ -1287,7 +1381,7 @@ function foodRelevance(name, ql, tokens){
 
 function searchFood(q){
   clearTimeout(searchT);
-  if(q.length<1){const _pop=['Ei (heel)','Banaan','Rijst (gekookt)','Havermout (droog)','Kipfilet (gegrild)','Volkoren brood','Witbrood','Griekse yoghurt 0%','Skyr','Kwark (mager)','Appel','Pasta (gekookt)','Tonijn (blik in water)','Zalm (vers)','Proteïneshake (melk)','Avocado','Pindakaas','Halfvolle melk','Aardappel','Zoete aardappel','Sinaasappel','Blauwe bessen','Haverdrank'];const _popItems=_pop.map(n=>FOODS.find(f=>f.n===n)).filter(Boolean);window._searchResults=_popItems;renderFoodResults(_popItems,true);return;}
+  if(q.length<1){renderStartView();return;}
   searchT=setTimeout(async()=>{
     const ql=q.toLowerCase().trim();
     const tokens=ql.split(/[^a-z0-9]+/).filter(Boolean);
@@ -1320,12 +1414,8 @@ function searchFood(q){
 function renderFoodResults(items,isPopular=false){
   const el=document.getElementById('foodSearchResults');
   if(!items.length){el.innerHTML='<div class="empty-state"><div class="empty-icon">🔍</div>'+(S.lang==='nl'?'Geen resultaten gevonden':'No results found')+'</div>';return;}
-  const hdr=isPopular?'<div style="font-size:11px;font-weight:700;color:var(--gray-400);padding:4px 12px 6px;letter-spacing:.5px">'+(S.lang==='nl'?'⭐ POPULAIR':'⭐ POPULAR')+'</div>':'';
-  el.innerHTML=hdr+items.map((f,i)=>`
-    <div class="search-result-item" onclick="selectFood(${i})">
-      <div><div class="result-name">${f.n}</div><div class="result-details">P:${f.p}g · K:${f.k}g · V:${f.v}g | per 100g</div></div>
-      <div class="result-cal">${f.c} kcal</div>
-    </div>`).join('');
+  const favSet=new Set((S.favorites||[]).map(f=>f.n.toLowerCase()));
+  el.innerHTML=items.map((f,i)=>foodRowHTML(f,i,favSet)).join('');
 }
 
 // Estimate the grams of "1 portion" (1 piece/serving) from a food name.
@@ -1390,6 +1480,7 @@ function selectFood(i){
   }
   if(hintEl) hintEl.textContent = hint;
   document.getElementById('portionGrams').value = portion || 100;
+  S.selectedPortion = portion || 100;
   // Refine the portion in the background with Nutritionix's real serving weight.
   // If it answers (and the user hasn't picked another item), update the field.
   if(food){
@@ -1399,6 +1490,7 @@ function selectFood(i){
       .then(d=>{
         if(d && d.grams && S.selectedFood && S.selectedFood.n===reqName){
           document.getElementById('portionGrams').value = d.grams;
+          S.selectedPortion = d.grams;
           if(hintEl) hintEl.textContent = (S.lang==='nl'?'💡 1 portie ≈ '+d.grams+'g (pas aan indien nodig)':'💡 1 serving ≈ '+d.grams+'g (adjust if needed)');
           updatePortionPreview();
         }
@@ -1423,6 +1515,7 @@ function addFoodToMeal(){
   const food=S.selectedFood;if(!food)return;
   const g=parseFloat(document.getElementById('portionGrams').value)||100;
   const r=g/100;
+  recordRecent(food);
   pushFoodItem({name:food.n,grams:g,cal:Math.round(food.c*r),protein:Math.round(food.p*r),carbs:Math.round(food.k*r),fat:Math.round(food.v*r)});
 }
 
@@ -1480,8 +1573,47 @@ function renderMeals(){
     const icons={ontbijt:'🌅',lunch:'☀️',tussendoortje:'🍎',avondeten:'🌙'};
     document.getElementById('items-'+meal).innerHTML=items.length===0
       ?`<div class="empty-state"><div class="empty-icon">${icons[meal]}</div><span>Nog niets gelogd</span></div>`
-      :items.map(f=>`<div class="food-item"><div><div class="food-item-name">${f.name}</div><div style="font-size:12px;color:var(--gray-400)">${f.grams}g · P:${f.protein}g K:${f.carbs}g V:${f.fat}g</div></div><div class="food-item-right"><div class="food-item-cal">${f.cal} kcal</div><button class="food-item-del" onclick="removeFood('${meal}',${f.id})">✕</button></div></div>`).join('');
+      :items.map(f=>{
+        const editing=S.editing&&S.editing.meal===meal&&S.editing.id===f.id;
+        if(editing){
+          return `<div class="food-item"><div style="flex:1"><div class="food-item-name">${f.name}</div>
+            <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
+              <input type="number" id="editGrams-${f.id}" value="${f.grams}" min="1" max="5000" style="width:80px;padding:6px;border:2px solid var(--green);border-radius:6px;font-size:13px;outline:none">
+              <span style="font-size:12px;color:var(--gray-400)">g</span>
+            </div></div>
+            <div class="food-item-right">
+              <button class="food-item-del" style="color:var(--green)" onclick="saveEditFood('${meal}',${f.id})">✓</button>
+              <button class="food-item-del" onclick="cancelEditFood()">✕</button>
+            </div></div>`;
+        }
+        return `<div class="food-item"><div><div class="food-item-name">${f.name}</div><div style="font-size:12px;color:var(--gray-400)">${f.grams}g · P:${f.protein}g K:${f.carbs}g V:${f.fat}g</div></div><div class="food-item-right"><div class="food-item-cal">${f.cal} kcal</div><button class="food-item-del" title="Aanpassen" onclick="editFood('${meal}',${f.id})">✏️</button><button class="food-item-del" onclick="removeFood('${meal}',${f.id})">✕</button></div></div>`;
+      }).join('');
   });
+  renderWater();
+}
+function editFood(meal,id){
+  S.editing={meal,id};
+  renderMeals();
+  const inp=document.getElementById('editGrams-'+id);
+  if(inp){ inp.focus(); inp.select(); }
+}
+function cancelEditFood(){ S.editing=null; renderMeals(); }
+function saveEditFood(meal,id){
+  const inp=document.getElementById('editGrams-'+id);
+  const item=(S.meals[meal]||[]).find(f=>f.id===id);
+  if(inp&&item){
+    const ng=parseFloat(inp.value)||0;
+    if(ng>0 && item.grams>0){
+      const ratio=ng/item.grams;
+      item.cal=Math.round(item.cal*ratio);
+      item.protein=Math.round(item.protein*ratio);
+      item.carbs=Math.round(item.carbs*ratio);
+      item.fat=Math.round(item.fat*ratio);
+      item.grams=ng;
+    }
+  }
+  S.editing=null;
+  saveDayLog(); renderMeals(); updateFoodSummary(); updateProfileUI();
 }
 
 function updateFoodSummary(){
@@ -1576,6 +1708,7 @@ function addBarcodeFood(){
   const g=parseFloat(document.getElementById('bcGrams')?.value)||100;
   const meal=document.getElementById('bcMeal')?.value||defaultMeal();
   const r=g/100;
+  recordRecent(food);
   if(!S.meals[meal]) S.meals[meal]=[];
   S.meals[meal].push({
     id:Date.now(),
@@ -2158,7 +2291,7 @@ function doLogout(){
     if(window._fb && window._fb.signOut && window._fb.fbAuth) window._fb.signOut(window._fb.fbAuth);
   }catch(e){}
   window._fbUser = null;
-  if(typeof S !== 'undefined'){ S.user=null; S.meals={ontbijt:[],lunch:[],tussendoortje:[],avondeten:[]}; S.weightLog=[]; S.calLog={}; S.macroLog={}; S.activities=[]; }
+  if(typeof S !== 'undefined'){ S.user=null; S.meals={ontbijt:[],lunch:[],tussendoortje:[],avondeten:[]}; S.weightLog=[]; S.calLog={}; S.macroLog={}; S.activities=[]; S.recentFoods=[]; S.favorites=[]; S.water={date:'',count:0,goal:8}; S.editing=null; }
   localStorage.removeItem('bt_user');
   localStorage.removeItem('bt_data');
   localStorage.removeItem('bt_lastWeight');
@@ -2405,6 +2538,12 @@ window.addFoodToMeal      = addFoodToMeal;
 window.addFood            = addFoodToMeal;
 window.addManualFood      = addManualFood;
 window.removeFood         = removeFood;
+window.editFood           = editFood;
+window.saveEditFood       = saveEditFood;
+window.cancelEditFood     = cancelEditFood;
+window.toggleFav          = toggleFav;
+window.setPortion         = setPortion;
+window.addWater           = addWater;
 window.updatePortionPreview = updatePortionPreview;
 window.setMealPortion     = updatePortionPreview;
 window.toggleMacros       = toggleMacros;
