@@ -1302,14 +1302,20 @@ function selectFood(i){
   S.selectedFood=food;
   document.getElementById('portionFoodName').textContent=food.n;
   document.getElementById('portionGrams').value=100;
-  // Show standard portion hint
+  // Prefill the portion: prefer the real package size from Open Food Facts,
+  // then a known standard portion, otherwise default 100g.
   const hintEl = document.getElementById('portionHint');
-  if(hintEl){
-    const stdPortions = {'Ei (heel)':60,'Banaan':120,'Appel':150,'Brood':35,'Rijst (gekookt)':180,'Pasta (gekookt)':200,'Kipfilet (gegrild)':150,'Melk':200,'Yoghurt naturel':150,'Griekse yoghurt 0%':150,'Kwark (mager)':150,'Skyr':150,'Pindakaas':15,'Havermout (droog)':50,'Chips naturel':25,'Chocolade':30};
-    const std = food && stdPortions[food.n] ? stdPortions[food.n] : null;
-    hintEl.textContent = std ? (S.lang==='nl'?'💡 1 portie ≈ '+std+'g':'💡 1 serving ≈ '+std+'g') : '';
-    if(std) document.getElementById('portionGrams').value = std;
+  const stdPortions = {'Ei (heel)':60,'Banaan':120,'Appel':150,'Brood':35,'Rijst (gekookt)':180,'Pasta (gekookt)':200,'Kipfilet (gegrild)':150,'Melk':200,'Yoghurt naturel':150,'Griekse yoghurt 0%':150,'Kwark (mager)':150,'Skyr':150,'Pindakaas':15,'Havermout (droog)':50,'Chips naturel':25,'Chocolade':30};
+  let portion = null, hint = '';
+  if(food && food.pg && food.pg > 0){
+    portion = food.pg;
+    hint = S.lang==='nl' ? '💡 Hele verpakking ≈ '+portion+'g' : '💡 Whole pack ≈ '+portion+'g';
+  } else if(food && stdPortions[food.n]){
+    portion = stdPortions[food.n];
+    hint = S.lang==='nl' ? '💡 1 portie ≈ '+portion+'g' : '💡 1 serving ≈ '+portion+'g';
   }
+  if(hintEl) hintEl.textContent = hint;
+  document.getElementById('portionGrams').value = portion || 100;
   updatePortionPreview();
   document.getElementById('portionSelect').classList.add('visible');
   document.querySelectorAll('.search-result-item').forEach((el,idx)=>{

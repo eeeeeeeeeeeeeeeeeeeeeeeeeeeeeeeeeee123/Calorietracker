@@ -1,4 +1,20 @@
 // Netlify Function: proxies Open Food Facts (Search-a-licious) to bypass browser CORS
+
+// Parse OFF's free-text `quantity` (e.g. "310 g", "1,5 l", "393g") into grams.
+// Returns null when there's no usable weight/volume (e.g. "3pcs").
+function parseGrams(q) {
+  if (!q || typeof q !== 'string') return null;
+  const m = q.toLowerCase().replace(',', '.').match(/(\d+(?:\.\d+)?)\s*(kg|cl|ml|g|l)\b/);
+  if (!m) return null;
+  let val = parseFloat(m[1]);
+  if (!(val > 0)) return null;
+  const unit = m[2];
+  if (unit === 'kg' || unit === 'l') val *= 1000; // 1 l ≈ 1000 g for tracking
+  else if (unit === 'cl') val *= 10;
+  // 'g' and 'ml' are used as-is
+  return Math.round(val);
+}
+
 exports.handler = async function(event) {
   const query = event.queryStringParameters?.q || '';
   const page  = event.queryStringParameters?.page || '1';
@@ -19,7 +35,7 @@ exports.handler = async function(event) {
       `https://search.openfoodfacts.org/search` +
       `?q=${encodeURIComponent(query)}` +
       `&langs=nl&page_size=40&page=${page}` +
-      `&fields=product_name,brands,nutriments,countries_tags`;
+      `&fields=product_name,brands,quantity,nutriments,countries_tags`;
 
     const resp = await fetch(url, {
       headers: { 'User-Agent': 'CalorieTracker/1.0 (contact@example.com)' }
@@ -50,6 +66,7 @@ exports.handler = async function(event) {
         p: Math.round(p.nutriments['proteins_100g']       || 0),
         k: Math.round(p.nutriments['carbohydrates_100g']  || 0),
         v: Math.round(p.nutriments['fat_100g']            || 0),
+        pg: parseGrams(p.quantity),  // package size in grams (null if unknown)
         src: 'off'  // mark as Open Food Facts result
       };});
 
