@@ -2,6 +2,17 @@
 // Groq has a usable free tier in the EU (unlike Gemini's free tier = 0 here).
 // Set GROQ_API_KEY in your Netlify environment variables.
 exports.handler = async function(event) {
+  // TEMP debug: GET ...?debug=1 lists which relevant env var NAMES reach the
+  // function (names only, no values) so we can see if GROQ_API_KEY arrives.
+  if (event.queryStringParameters && event.queryStringParameters.debug === '1') {
+    const keys = Object.keys(process.env).filter(k => /GROQ|GEMINI|API|KEY/i.test(k));
+    return {
+      statusCode: 200,
+      headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hasGroq: !!process.env.GROQ_API_KEY, matchingEnvKeys: keys })
+    };
+  }
+
   if (event.httpMethod !== 'POST') return { statusCode:405, body:'Method not allowed' };
 
   const GROQ_KEY = process.env.GROQ_API_KEY;
