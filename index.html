@@ -748,7 +748,6 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
     </div>
     <div class="ai-analyzing" id="aiAnalyzing"><div class="spinner" style="display:block;margin:0 auto 8px"></div><p data-nl="AI analyseert..." data-en="AI is analyzing...">AI analyseert...</p></div>
     <div id="photoResult"></div>
-    <div style="background:var(--gray-50);border-radius:10px;padding:12px;font-size:12px;color:var(--gray-400);margin-top:8px">💡 <span data-nl="Voeg een GROQ_API_KEY toe in je Netlify-variabelen voor foto-herkenning." data-en="Add a GROQ_API_KEY in your Netlify variables for photo recognition.">Voeg een GROQ_API_KEY toe in je Netlify-variabelen voor foto-herkenning.</span></div>
   </div>
 </div>
 
@@ -1451,6 +1450,8 @@ async function lookupBarcode(code){
     const d=await r.json();
     if(d.food){
       const food=d.food;
+      window._bcFood=food;            // keep the product; avoids fragile onclick serialization
+      const dm=defaultMeal();
       // Display result
       el.innerHTML=`<div style="background:var(--green-xlight);border-radius:10px;padding:16px">
         ${food.img?`<img src="${food.img}" style="width:60px;height:60px;object-fit:contain;float:right;border-radius:8px">`:''}
@@ -1462,7 +1463,16 @@ async function lookupBarcode(code){
           <label style="font-size:13px;color:var(--gray-600);white-space:nowrap">${S.lang==='nl'?'Gram:':'Grams:'}</label>
           <input type="number" id="bcGrams" class="form-input" value="100" min="1" max="9999" style="margin-bottom:0;flex:1">
         </div>
-        <button class="btn-primary" style="width:100%;margin-top:12px" onclick="addBarcodeFood(${JSON.stringify(food).replace(/"/g,'&quot;')})">
+        <div style="margin-top:8px;display:flex;align-items:center;gap:8px">
+          <label style="font-size:13px;color:var(--gray-600);white-space:nowrap">${S.lang==='nl'?'Maaltijd:':'Meal:'}</label>
+          <select id="bcMeal" class="form-input" style="margin-bottom:0;flex:1">
+            <option value="ontbijt"${dm==='ontbijt'?' selected':''}>${S.lang==='nl'?'Ontbijt':'Breakfast'}</option>
+            <option value="lunch"${dm==='lunch'?' selected':''}>Lunch</option>
+            <option value="tussendoortje"${dm==='tussendoortje'?' selected':''}>${S.lang==='nl'?'Tussendoortje':'Snack'}</option>
+            <option value="avondeten"${dm==='avondeten'?' selected':''}>${S.lang==='nl'?'Avondeten':'Dinner'}</option>
+          </select>
+        </div>
+        <button class="btn-primary" style="width:100%;margin-top:12px" onclick="addBarcodeFood()">
           + ${S.lang==='nl'?'Toevoegen':'Add'}
         </button>
       </div>`;
@@ -1492,11 +1502,30 @@ function addPhotoFoods(items){
   showNotif('✅ '+(S.lang==='nl'?`${items.length} items toegevoegd`:`${items.length} items added`));
 }
 
-function addBarcodeFood(food){
+function defaultMeal(){
+  const h=new Date().getHours();
+  return h<11?'ontbijt':h<15?'lunch':h<18?'tussendoortje':'avondeten';
+}
+function addBarcodeFood(){
+  const food=window._bcFood;
+  if(!food){ return; }
   const g=parseFloat(document.getElementById('bcGrams')?.value)||100;
+  const meal=document.getElementById('bcMeal')?.value||defaultMeal();
   const r=g/100;
-  pushFoodItem({name:food.n,grams:g,cal:Math.round(food.c*r),protein:Math.round(food.p*r),carbs:Math.round(food.k*r),fat:Math.round(food.v*r)});
+  if(!S.meals[meal]) S.meals[meal]=[];
+  S.meals[meal].push({
+    id:Date.now(),
+    name:food.n,
+    grams:g,
+    cal:Math.round((food.c||0)*r),
+    protein:Math.round((food.p||0)*r),
+    carbs:Math.round((food.k||0)*r),
+    fat:Math.round((food.v||0)*r)
+  });
+  saveDayLog();renderMeals();updateFoodSummary();updateProfileUI();
+  stopLiveScan();
   closeModal('barcodeModal');
+  showNotif('✅ '+food.n+' '+(S.lang==='nl'?'toegevoegd!':'added!'));
 }
 
 // ===== PHOTO =====
@@ -2109,8 +2138,8 @@ function openWebcam(){
     if(err) err.textContent = (S.lang==='nl'?'Geen camera beschikbaar in deze browser.':'No camera available in this browser.');
     return;
   }
-  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-    .then(function(stream){ _webcamStream = stream; if(video){ video.srcObject = stream; video.play(); } })
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } } })
+    .then(function(stream){ _webcamStream = stream; if(video){ video.srcObject = stream; video.play(); } applyFocus(_webcamStream); })
     .catch(function(e){ if(err) err.textContent = (S.lang==='nl'?'Kan camera niet openen: ':'Cannot open camera: ') + (e.message||e.name); });
 }
 function snapWebcam(){
@@ -2170,8 +2199,8 @@ async function startLiveScan(){
   }
   if(video){ video.srcObject=_scanStream; try{ await video.play(); }catch(e){} }
   _scanning = true;
-  setScanStatus(S.lang==='nl'?'📷 Richt op de barcode — houd ’m stil en iets verder weg zodat de camera scherpstelt.':'📷 Aim at the barcode — hold steady and a bit further so the camera can focus.');
-  applyFocus();
+  setScanStatus(S.lang==='nl'?'📷 Richt op de barcode...':'📷 Aim at the barcode...');
+  applyFocus(_scanStream);
   setupTorch();
 
   // Preferred path: native BarcodeDetector (Edge/Chrome/Android)
@@ -2223,10 +2252,11 @@ function stopLiveScan(){
   var tb=document.getElementById('torchBtn'); if(tb) tb.style.display='none';
 }
 
-function applyFocus(){
+function applyFocus(stream){
   // Ask the camera for continuous autofocus where supported (helps webcams that
-  // otherwise stay fixed-focus and leave a close barcode blurry).
-  var track=_scanStream && _scanStream.getVideoTracks ? _scanStream.getVideoTracks()[0] : null;
+  // otherwise stay fixed-focus and leave a close subject blurry).
+  stream = stream || _scanStream;
+  var track=stream && stream.getVideoTracks ? stream.getVideoTracks()[0] : null;
   if(!track || !track.getCapabilities || !track.applyConstraints) return;
   try{
     var caps=track.getCapabilities();
