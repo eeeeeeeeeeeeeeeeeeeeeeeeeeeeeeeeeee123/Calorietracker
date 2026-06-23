@@ -548,7 +548,7 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
     </div>
     <div class="scan-bar">
       <button class="scan-btn" onclick="openPhotoModal()">📷 <span data-nl="Foto maken" data-en="Take photo">Foto maken</span></button>
-        <button class="scan-btn" onclick="openCameraScanner()">📊 <span data-nl="Barcode scannen" data-en="Scan barcode">Barcode scannen</span></button>
+        <button class="scan-btn" onclick="openBarcodeModal()">📊 <span data-nl="Barcode scannen" data-en="Scan barcode">Barcode scannen</span></button>
     </div>
     <div class="meal-sections">
       <div class="meal-section"><div class="meal-header"><div class="meal-header-left"><div class="meal-icon" style="background:#fef9c3">🌅</div><div><div class="meal-title" data-nl="Ontbijt" data-en="Breakfast">Ontbijt</div><div class="meal-cals" id="cals-ontbijt">0 kcal</div></div></div></div><div class="meal-items" id="items-ontbijt"><div class="empty-state"><div class="empty-icon">🌅</div><span data-nl="Nog niets gelogd" data-en="Nothing logged yet">Nog niets gelogd</span></div></div><button class="meal-add-btn" onclick="openFoodSearch('ontbijt')">＋ <span data-nl="Voedsel toevoegen" data-en="Add food">Voedsel toevoegen</span></button></div>
@@ -702,13 +702,13 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
   <div class="modal">
     <div class="modal-title">📊 <span data-nl="Barcode scannen" data-en="Scan barcode">Barcode scannen</span><button class="modal-close" onclick="stopCameraScan();closeModal('barcodeModal')">✕</button></div>
     <div style="margin-bottom:14px">
-      <button class="btn-primary" style="width:100%;padding:16px;font-size:15px" onclick="openCameraScanner()">
-        📷 <span data-nl="Maak foto van barcode" data-en="Take photo of barcode">Maak foto van barcode</span>
+      <button class="btn-primary" style="width:100%;padding:16px;font-size:15px" onclick="scanBarcodeNow()">
+        📷 <span data-nl="Foto scannen" data-en="Scan photo">Foto scannen</span>
       </button>
-      <input type="file" id="barcodePhotoInput" accept="image/*" capture="environment" style="display:none" onchange="scanBarcodePhoto(this)">
       <div style="text-align:center;font-size:12px;color:var(--gray-400);margin-top:6px" data-nl="Richt scherp en recht op de streepjescode" data-en="Aim sharply and straight at the barcode">Richt scherp en recht op de streepjescode</div>
     </div>
-    <label class="form-label" data-nl="BARCODE NUMMER" data-en="BARCODE NUMBER">BARCODE NUMMER</label>
+    <div style="text-align:center;font-size:12px;color:var(--gray-400);margin:4px 0 10px" data-nl="— of —" data-en="— or —">— of —</div>
+    <label class="form-label" data-nl="VOER NUMMER IN" data-en="ENTER NUMBER">VOER NUMMER IN</label>
     <div style="display:flex;gap:10px">
       <input type="text" class="form-input" id="barcodeInput" placeholder="b.v. 8710398123456" style="margin-bottom:0;flex:1">
       <button class="btn-sm" onclick="lookupBarcode()" style="height:50px" data-nl="Zoeken" data-en="Search">Zoeken</button>
@@ -722,23 +722,35 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
   <div class="modal">
     <div class="modal-title">📷 <span data-nl="Foto analyseren" data-en="Analyze photo">Foto analyseren</span><button class="modal-close" onclick="closeModal('photoModal')">✕</button></div>
     <div style="margin-bottom:16px">
-      <button class="btn-primary" style="width:100%;padding:20px;font-size:16px" onclick="document.getElementById('photoCameraInput').click()">
+      <button class="btn-primary" style="width:100%;padding:20px;font-size:16px" onclick="takePhoto(analyzePhotoFile)">
         📷 <span data-nl="Foto maken met camera" data-en="Take photo with camera">Foto maken met camera</span>
       </button>
-      <input type="file" id="photoCameraInput" accept="image/*" capture="environment" style="display:none" onchange="analyzePhoto(this)">
       <div style="text-align:center;margin-top:12px">
         <a href="#" onclick="document.getElementById('photoFileInput').click();return false" style="font-size:13px;color:var(--gray-400);text-decoration:underline">
           <span data-nl="Of kies bestand" data-en="Or choose file">Of kies bestand</span>
         </a>
         <input type="file" id="photoFileInput" accept="image/*" style="display:none" onchange="analyzePhoto(this)">
       </div>
-    </div><div style="color:var(--gray-400);font-size:14px" data-nl="Klik om foto te uploaden" data-en="Click to upload a photo">Klik om foto te uploaden</div></div>
-    <input type="file" id="photoCameraInput2" accept="image/*" capture="environment" onchange="analyzePhoto(this)">
+    </div>
     <div class="ai-analyzing" id="aiAnalyzing"><div class="spinner" style="display:block;margin:0 auto 8px"></div><p data-nl="AI analyseert..." data-en="AI is analyzing...">AI analyseert...</p></div>
     <div id="photoResult"></div>
     <div style="background:var(--gray-50);border-radius:10px;padding:12px;font-size:12px;color:var(--gray-400);margin-top:8px">💡 <span data-nl="Voeg Gemini API key toe in je backend voor foto-herkenning." data-en="Add Gemini API key in your backend for photo recognition.">Voeg Gemini API key toe in je backend voor foto-herkenning.</span></div>
   </div>
 </div>
+
+<!-- WEBCAM MODAL (desktop photo capture) -->
+<div class="modal-overlay" id="webcamModal">
+  <div class="modal">
+    <div class="modal-title">📷 <span data-nl="Foto maken" data-en="Take photo">Foto maken</span><button class="modal-close" onclick="closeWebcam()">✕</button></div>
+    <video id="webcamVideo" autoplay playsinline muted style="width:100%;border-radius:12px;max-height:320px;background:#000"></video>
+    <div id="webcamErr" style="color:var(--red);font-size:13px;margin-top:8px;text-align:center"></div>
+    <button class="btn-primary" style="width:100%;margin-top:12px;padding:14px" onclick="snapWebcam()">
+      📸 <span data-nl="Maak foto" data-en="Capture">Maak foto</span>
+    </button>
+  </div>
+</div>
+<!-- Hidden native camera input (mobile photo capture) -->
+<input type="file" id="genericCaptureInput" accept="image/*" capture="environment" style="display:none" onchange="onGenericCapture(this)">
 
 <div class="notif" id="notif">✅ <span id="notifText"></span></div>
 
@@ -1478,11 +1490,13 @@ function openPhotoModal(){
   document.getElementById('photoResult').innerHTML='';
   document.getElementById('aiAnalyzing').style.display='none';
   document.getElementById('photoModal').classList.add('open');
-  document.getElementById('photoCameraInput').click();
+  // Show the choice (camera vs file) instead of jumping straight into capture.
 }
-async function analyzePhoto(input){
-  if(!input.files||!input.files[0])return;
-  const file=input.files[0];
+function analyzePhoto(input){
+  if(input && input.files && input.files[0]) analyzePhotoFile(input.files[0]);
+}
+async function analyzePhotoFile(file){
+  if(!file)return;
   const aiEl=document.getElementById('aiAnalyzing');
   const resultEl=document.getElementById('photoResult');
   aiEl.style.display='block';resultEl.innerHTML='';
@@ -2045,19 +2059,72 @@ function doLogout(){
   document.getElementById('logoutDropdown')?.classList.remove('open');
 }
 
-// ===== BARCODE SCANNER (photo-based) =====
-// Live video decoding was unreliable on phones (the stream rarely focuses on
-// the barcode). Instead we let the native camera take one sharp still photo and
-// decode that single image with ZXing — far more reliable.
-var _codeReader = null;
-function openCameraScanner(){
-  openBarcodeModal();
-  var input = document.getElementById('barcodePhotoInput');
-  if(input){ input.value = ''; input.click(); }
+// ===== PHOTO CAPTURE HELPER (mobile camera + desktop webcam) =====
+// takePhoto(cb) gets one still photo as a File and hands it to cb.
+//  - Mobile: opens the native camera app (sharpest, autofocus).
+//  - Desktop: opens a webcam preview with a manual "Maak foto" button.
+function isMobileDevice(){
+  return /Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(navigator.userAgent || '');
 }
-function scanBarcodePhoto(input){
-  var file = input.files && input.files[0];
-  input.value = ''; // allow re-selecting the same file later
+var _captureCb = null;
+function takePhoto(cb){
+  _captureCb = cb;
+  if(isMobileDevice()){
+    var inp = document.getElementById('genericCaptureInput');
+    if(inp){ inp.value=''; inp.click(); }
+  } else {
+    openWebcam();
+  }
+}
+function onGenericCapture(input){
+  var f = input.files && input.files[0];
+  input.value = '';
+  var cb = _captureCb; _captureCb = null;
+  if(f && cb) cb(f);
+}
+
+// --- Desktop webcam preview ---
+var _webcamStream = null;
+function openWebcam(){
+  var modal = document.getElementById('webcamModal');
+  var video = document.getElementById('webcamVideo');
+  var err   = document.getElementById('webcamErr');
+  if(err) err.textContent = '';
+  if(modal) modal.classList.add('open');
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    if(err) err.textContent = (S.lang==='nl'?'Geen camera beschikbaar in deze browser.':'No camera available in this browser.');
+    return;
+  }
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+    .then(function(stream){ _webcamStream = stream; if(video){ video.srcObject = stream; video.play(); } })
+    .catch(function(e){ if(err) err.textContent = (S.lang==='nl'?'Kan camera niet openen: ':'Cannot open camera: ') + (e.message||e.name); });
+}
+function snapWebcam(){
+  var video = document.getElementById('webcamVideo');
+  if(!video || !video.videoWidth){ return; }
+  var canvas = document.createElement('canvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  var cb = _captureCb; _captureCb = null;
+  canvas.toBlob(function(blob){
+    closeWebcam();
+    if(blob && cb) cb(new File([blob], 'photo.jpg', { type: 'image/jpeg' }));
+  }, 'image/jpeg', 0.92);
+}
+function closeWebcam(){
+  if(_webcamStream){ _webcamStream.getTracks().forEach(function(t){ t.stop(); }); _webcamStream = null; }
+  var video = document.getElementById('webcamVideo');
+  if(video) video.srcObject = null;
+  var modal = document.getElementById('webcamModal');
+  if(modal) modal.classList.remove('open');
+}
+
+// ===== BARCODE SCANNER (photo-based) =====
+// Decode a single sharp still photo with ZXing — far more reliable than live video.
+var _codeReader = null;
+function scanBarcodeNow(){ takePhoto(decodeBarcodeFile); }
+function decodeBarcodeFile(file){
   if(!file) return;
   var el = document.getElementById('barcodeResult');
   if(el) el.innerHTML = '<div style="text-align:center"><div class="spinner"></div>'+
@@ -2089,6 +2156,7 @@ function scanBarcodePhoto(input){
     }, 300);
   } else { decode(); }
 }
+function openCameraScanner(){ openBarcodeModal(); scanBarcodeNow(); } // kept for any old callers
 function stopCameraScan(){
   // Kept for the modal close buttons; nothing live to stop in photo mode.
   if(_codeReader){ try{ _codeReader.reset(); }catch(e){} _codeReader=null; }
@@ -2129,9 +2197,15 @@ window.lookupBarcode      = lookupBarcode;
 window.addBarcodeFood     = addBarcodeFood;
 window.openCameraScanner  = openCameraScanner;
 window.stopCameraScan     = stopCameraScan;
-window.scanBarcodePhoto   = scanBarcodePhoto;
+window.scanBarcodeNow     = scanBarcodeNow;
+window.takePhoto          = takePhoto;
+window.onGenericCapture   = onGenericCapture;
+window.openWebcam         = openWebcam;
+window.snapWebcam         = snapWebcam;
+window.closeWebcam        = closeWebcam;
 window.openPhotoModal     = openPhotoModal;
 window.analyzePhoto       = analyzePhoto;
+window.analyzePhotoFile   = analyzePhotoFile;
 window.addPhotoFoods      = addPhotoFoods;
 window.selectAct          = selectAct;
 window.calcActivity       = calcActivity;
