@@ -701,14 +701,13 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
 <div class="modal-overlay" id="barcodeModal">
   <div class="modal">
     <div class="modal-title">📊 <span data-nl="Barcode scannen" data-en="Scan barcode">Barcode scannen</span><button class="modal-close" onclick="stopCameraScan();closeModal('barcodeModal')">✕</button></div>
-    <div id="cameraScanArea" style="display:none;margin-bottom:16px">
-      <video id="cameraPreview" style="width:100%;border-radius:12px;max-height:220px;background:#000"></video>
-      <button class="btn-sm" style="width:100%;margin-top:8px;background:var(--red);color:white;border:none" onclick="stopCameraScan()">
-        ⏹ <span data-nl="Camera stoppen" data-en="Stop camera">Camera stoppen</span>
+    <div style="margin-bottom:14px">
+      <button class="btn-primary" style="width:100%;padding:16px;font-size:15px" onclick="openCameraScanner()">
+        📷 <span data-nl="Maak foto van barcode" data-en="Take photo of barcode">Maak foto van barcode</span>
       </button>
+      <input type="file" id="barcodePhotoInput" accept="image/*" capture="environment" style="display:none" onchange="scanBarcodePhoto(this)">
+      <div style="text-align:center;font-size:12px;color:var(--gray-400);margin-top:6px" data-nl="Richt scherp en recht op de streepjescode" data-en="Aim sharply and straight at the barcode">Richt scherp en recht op de streepjescode</div>
     </div>
-<div id="cameraScanStatus" style="display:none;text-align:center;padding:8px;font-size:13px;color:var(--gray-400)">📷 Richt op barcode...</div>
-    <div class="barcode-scanner-sim" style="display:none"><div class="scan-anim">📷</div><p style="margin-top:12px;font-size:13px" data-nl="Camera vereist backend. Voer barcode handmatig in:" data-en="Camera requires backend. Enter barcode manually:">Camera vereist backend. Voer barcode handmatig in:</p></div>
     <label class="form-label" data-nl="BARCODE NUMMER" data-en="BARCODE NUMBER">BARCODE NUMMER</label>
     <div style="display:flex;gap:10px">
       <input type="text" class="form-input" id="barcodeInput" placeholder="b.v. 8710398123456" style="margin-bottom:0;flex:1">
@@ -2040,56 +2039,53 @@ function doLogout(){
   document.getElementById('logoutDropdown')?.classList.remove('open');
 }
 
-// ===== CAMERA BARCODE SCANNER =====
+// ===== BARCODE SCANNER (photo-based) =====
+// Live video decoding was unreliable on phones (the stream rarely focuses on
+// the barcode). Instead we let the native camera take one sharp still photo and
+// decode that single image with ZXing — far more reliable.
 var _codeReader = null;
 function openCameraScanner(){
   openBarcodeModal();
-  var area   = document.getElementById('cameraScanArea');
-  var status = document.getElementById('cameraScanStatus');
-  if(area)   area.style.display   = 'block';
-  if(status) status.style.display = 'block';
-  document.getElementById('barcodeResult').innerHTML = '';
-  function startScan(){
-    try {
-      _codeReader = new ZXing.BrowserMultiFormatReader();
-      _codeReader.decodeFromConstraints(
-        {video:{facingMode:'environment'}},
-        document.getElementById('cameraPreview'),
-        function(result, err){
-          if(result){
-            var code = result.getText();
-            document.getElementById('barcodeInput').value = code;
-            stopCameraScan();
-            lookupBarcode(code);
-          }
-        }
-      );
-    } catch(e){ showNotif('❌ Camera niet beschikbaar'); stopCameraScan(); }
+  var input = document.getElementById('barcodePhotoInput');
+  if(input){ input.value = ''; input.click(); }
+}
+function scanBarcodePhoto(input){
+  var file = input.files && input.files[0];
+  input.value = ''; // allow re-selecting the same file later
+  if(!file) return;
+  var el = document.getElementById('barcodeResult');
+  if(el) el.innerHTML = '<div style="text-align:center"><div class="spinner"></div>'+
+    '<div style="font-size:12px;color:var(--gray-400);margin-top:6px">'+
+    (S.lang==='nl'?'📷 Barcode lezen...':'📷 Reading barcode...')+'</div></div>';
+  var url = URL.createObjectURL(file);
+  function fail(msg){ URL.revokeObjectURL(url); if(el) el.innerHTML='<div style="color:var(--red);padding:12px">❌ '+msg+'</div>'; }
+  function decode(){
+    try{
+      var reader = new ZXing.BrowserMultiFormatReader();
+      reader.decodeFromImageUrl(url).then(function(result){
+        URL.revokeObjectURL(url);
+        var code = result.getText();
+        var bi = document.getElementById('barcodeInput'); if(bi) bi.value = code;
+        lookupBarcode(code);
+      }).catch(function(){
+        fail(S.lang==='nl'
+          ? 'Geen barcode herkend. Maak een scherpere foto of tik het nummer hieronder in.'
+          : 'No barcode detected. Take a sharper photo or type the number below.');
+      });
+    }catch(e){ fail(S.lang==='nl'?'Scanner niet beschikbaar':'Scanner unavailable'); }
   }
   if(typeof ZXing === 'undefined'){
-    // Library may still be loading (e.g. fallback CDN kicked in) — retry briefly before giving up
     var tries = 0;
-    var waitForZXing = setInterval(function(){
+    var wait = setInterval(function(){
       tries++;
-      if(typeof ZXing !== 'undefined'){
-        clearInterval(waitForZXing);
-        startScan();
-      } else if(tries >= 10){
-        clearInterval(waitForZXing);
-        showNotif('❌ Scanner niet beschikbaar');
-        stopCameraScan();
-      }
+      if(typeof ZXing !== 'undefined'){ clearInterval(wait); decode(); }
+      else if(tries >= 12){ clearInterval(wait); fail(S.lang==='nl'?'Scanner nog niet geladen, probeer opnieuw':'Scanner not loaded yet, try again'); }
     }, 300);
-    return;
-  }
-  startScan();
+  } else { decode(); }
 }
 function stopCameraScan(){
+  // Kept for the modal close buttons; nothing live to stop in photo mode.
   if(_codeReader){ try{ _codeReader.reset(); }catch(e){} _codeReader=null; }
-  var area   = document.getElementById('cameraScanArea');
-  var status = document.getElementById('cameraScanStatus');
-  if(area)   area.style.display   = 'none';
-  if(status) status.style.display = 'none';
 }
 
 // ===== EXPOSE ALL FUNCTIONS GLOBALLY =====
@@ -2127,6 +2123,7 @@ window.lookupBarcode      = lookupBarcode;
 window.addBarcodeFood     = addBarcodeFood;
 window.openCameraScanner  = openCameraScanner;
 window.stopCameraScan     = stopCameraScan;
+window.scanBarcodePhoto   = scanBarcodePhoto;
 window.openPhotoModal     = openPhotoModal;
 window.analyzePhoto       = analyzePhoto;
 window.addPhotoFoods      = addPhotoFoods;
