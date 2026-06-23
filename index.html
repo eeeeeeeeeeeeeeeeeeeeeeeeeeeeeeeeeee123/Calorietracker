@@ -49,8 +49,8 @@ onAuthStateChanged(fbAuth, async (user) => {
   }
 });
 </script>
-<!-- ZXing barcode scanner -->
-<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js'"></script>
+<!-- ZXing barcode scanner (self-hosted to avoid CDN tracking-prevention blocks) -->
+<script src="/vendor/zxing.min.js"></script>
 <style>
 :root{--green:#22c55e;--green-dark:#16a34a;--green-light:#86efac;--green-xlight:#dcfce7;--gray-50:#f9fafb;--gray-100:#f3f4f6;--gray-200:#e5e7eb;--gray-400:#9ca3af;--gray-600:#4b5563;--gray-800:#1f2937;--blue:#3b82f6;--orange:#f97316;--red:#ef4444;--purple:#a855f7;--radius:12px;--shadow:0 4px 24px rgba(0,0,0,0.08);--shadow-lg:0 8px 40px rgba(0,0,0,0.12);}
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -700,12 +700,26 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
 <!-- BARCODE MODAL -->
 <div class="modal-overlay" id="barcodeModal">
   <div class="modal">
-    <div class="modal-title">📊 <span data-nl="Barcode scannen" data-en="Scan barcode">Barcode scannen</span><button class="modal-close" onclick="stopCameraScan();closeModal('barcodeModal')">✕</button></div>
-    <div style="margin-bottom:14px">
-      <button class="btn-primary" style="width:100%;padding:16px;font-size:15px" onclick="scanBarcodeNow()">
-        📷 <span data-nl="Foto scannen" data-en="Scan photo">Foto scannen</span>
+    <div class="modal-title">📊 <span data-nl="Barcode scannen" data-en="Scan barcode">Barcode scannen</span><button class="modal-close" onclick="stopLiveScan();closeModal('barcodeModal')">✕</button></div>
+    <div id="scanArea" style="margin-bottom:12px;display:none">
+      <div style="position:relative;border-radius:12px;overflow:hidden;background:#000">
+        <video id="scanVideo" autoplay playsinline muted style="width:100%;max-height:260px;display:block;object-fit:cover"></video>
+        <div style="position:absolute;left:8%;right:8%;top:50%;height:2px;background:rgba(34,197,94,.9);box-shadow:0 0 8px rgba(34,197,94,.8)"></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <div id="scanStatus" style="flex:1;font-size:13px;color:var(--gray-400);align-self:center">📷 <span data-nl="Camera starten..." data-en="Starting camera...">Camera starten...</span></div>
+        <button id="torchBtn" class="btn-sm" style="display:none" onclick="toggleTorch()">🔦 <span data-nl="Licht" data-en="Light">Licht</span></button>
+      </div>
+    </div>
+    <div style="margin-bottom:10px">
+      <button class="btn-primary" id="scanStartBtn" style="width:100%;padding:14px;font-size:15px" onclick="startLiveScan()">
+        📷 <span data-nl="Scan starten" data-en="Start scan">Scan starten</span>
       </button>
-      <div style="text-align:center;font-size:12px;color:var(--gray-400);margin-top:6px" data-nl="Richt scherp en recht op de streepjescode" data-en="Aim sharply and straight at the barcode">Richt scherp en recht op de streepjescode</div>
+      <div style="text-align:center;margin-top:8px">
+        <a href="#" onclick="scanBarcodeNow();return false" style="font-size:13px;color:var(--gray-400);text-decoration:underline">
+          <span data-nl="Of maak één foto" data-en="Or take one photo">Of maak één foto</span>
+        </a>
+      </div>
     </div>
     <div style="text-align:center;font-size:12px;color:var(--gray-400);margin:4px 0 10px" data-nl="— of —" data-en="— or —">— of —</div>
     <label class="form-label" data-nl="VOER NUMMER IN" data-en="ENTER NUMBER">VOER NUMMER IN</label>
@@ -1426,7 +1440,7 @@ function updateFoodSummary(){
 }
 
 // ===== BARCODE =====
-function openBarcodeModal(){document.getElementById('barcodeInput').value='';document.getElementById('barcodeResult').innerHTML='';document.getElementById('barcodeModal').classList.add('open');}
+function openBarcodeModal(){document.getElementById('barcodeInput').value='';document.getElementById('barcodeResult').innerHTML='';document.getElementById('barcodeModal').classList.add('open');startLiveScan();}
 async function lookupBarcode(code){
   if(!code)code=document.getElementById('barcodeInput').value.trim();
   if(!code)return;
@@ -2120,10 +2134,109 @@ function closeWebcam(){
   if(modal) modal.classList.remove('open');
 }
 
-// ===== BARCODE SCANNER (photo-based) =====
-// Decode a single sharp still photo with ZXing — far more reliable than live video.
-var _codeReader = null;
-function scanBarcodeNow(){ takePhoto(decodeBarcodeFile); }
+// ===== BARCODE SCANNER (live continuous scan) =====
+// Single-photo decode failed instantly on imperfect shots. Live scanning keeps
+// the camera on and tries many frames/sec, using the browser's native
+// BarcodeDetector when available (fast + accurate) and falling back to ZXing.
+var BC_FORMATS = ['ean_13','ean_8','upc_a','upc_e','code_128','code_39','itf','codabar'];
+var _scanStream = null, _scanLoop = null, _scanReader = null, _scanning = false, _torchOn = false;
+
+function setScanStatus(txt){ var s=document.getElementById('scanStatus'); if(s) s.textContent=txt; }
+
+async function startLiveScan(){
+  if(_scanning) return;
+  var video = document.getElementById('scanVideo');
+  var area  = document.getElementById('scanArea');
+  var startBtn = document.getElementById('scanStartBtn');
+  var result = document.getElementById('barcodeResult');
+  if(result) result.innerHTML='';
+  if(area) area.style.display='block';
+  if(startBtn) startBtn.style.display='none';
+  setScanStatus(S.lang==='nl'?'📷 Camera starten...':'📷 Starting camera...');
+
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    setScanStatus(S.lang==='nl'?'Geen camera in deze browser. Maak een foto of voer het nummer in.':'No camera in this browser. Use a photo or enter the number.');
+    if(startBtn) startBtn.style.display='block';
+    return;
+  }
+  try{
+    _scanStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+    });
+  }catch(e){
+    setScanStatus((S.lang==='nl'?'Kan camera niet openen: ':'Cannot open camera: ')+(e.message||e.name));
+    if(startBtn) startBtn.style.display='block';
+    return;
+  }
+  if(video){ video.srcObject=_scanStream; try{ await video.play(); }catch(e){} }
+  _scanning = true;
+  setScanStatus(S.lang==='nl'?'📷 Richt op de barcode...':'📷 Aim at the barcode...');
+  setupTorch();
+
+  // Preferred path: native BarcodeDetector (Edge/Chrome/Android)
+  if('BarcodeDetector' in window){
+    var detector;
+    try{ detector = new BarcodeDetector({ formats: BC_FORMATS }); }
+    catch(e){ detector = new BarcodeDetector(); }
+    _scanLoop = setInterval(async function(){
+      if(!_scanning || !video || !video.videoWidth) return;
+      try{
+        var codes = await detector.detect(video);
+        if(codes && codes.length && codes[0].rawValue) onScanHit(codes[0].rawValue);
+      }catch(e){}
+    }, 200);
+    return;
+  }
+  // Fallback: ZXing continuous decode with TRY_HARDER
+  if(typeof ZXing !== 'undefined'){
+    try{
+      var hints = new Map();
+      hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+      _scanReader = new ZXing.BrowserMultiFormatReader(hints);
+      _scanReader.decodeFromStream(_scanStream, video, function(res, err){
+        if(res && _scanning) onScanHit(res.getText());
+      }).catch(function(){});
+    }catch(e){
+      setScanStatus(S.lang==='nl'?'Scanner-fout. Maak een foto of voer het nummer in.':'Scanner error. Use a photo or enter the number.');
+    }
+  } else {
+    setScanStatus(S.lang==='nl'?'Scanner laadt nog... maak anders een foto.':'Scanner still loading... try a photo.');
+  }
+}
+
+function onScanHit(code){
+  if(!_scanning) return;
+  stopLiveScan();
+  var bi = document.getElementById('barcodeInput'); if(bi) bi.value = code;
+  lookupBarcode(code);
+}
+
+function stopLiveScan(){
+  _scanning = false; _torchOn = false;
+  if(_scanLoop){ clearInterval(_scanLoop); _scanLoop=null; }
+  if(_scanReader){ try{ _scanReader.reset(); }catch(e){} _scanReader=null; }
+  if(_scanStream){ _scanStream.getTracks().forEach(function(t){ t.stop(); }); _scanStream=null; }
+  var video=document.getElementById('scanVideo'); if(video) video.srcObject=null;
+  var area=document.getElementById('scanArea'); if(area) area.style.display='none';
+  var startBtn=document.getElementById('scanStartBtn'); if(startBtn) startBtn.style.display='block';
+  var tb=document.getElementById('torchBtn'); if(tb) tb.style.display='none';
+}
+
+function setupTorch(){
+  var btn=document.getElementById('torchBtn'); if(!btn) return;
+  var track=_scanStream && _scanStream.getVideoTracks ? _scanStream.getVideoTracks()[0] : null;
+  var caps=(track && track.getCapabilities) ? track.getCapabilities() : {};
+  btn.style.display = (caps && caps.torch) ? 'inline-block' : 'none';
+}
+function toggleTorch(){
+  var track=_scanStream && _scanStream.getVideoTracks ? _scanStream.getVideoTracks()[0] : null;
+  if(!track || !track.applyConstraints) return;
+  _torchOn=!_torchOn;
+  track.applyConstraints({ advanced:[{ torch:_torchOn }] }).catch(function(){});
+}
+
+// One-photo fallback (used by the "Of maak één foto" link), with TRY_HARDER.
+function scanBarcodeNow(){ stopLiveScan(); takePhoto(decodeBarcodeFile); }
 function decodeBarcodeFile(file){
   if(!file) return;
   var el = document.getElementById('barcodeResult');
@@ -2132,35 +2245,32 @@ function decodeBarcodeFile(file){
     (S.lang==='nl'?'📷 Barcode lezen...':'📷 Reading barcode...')+'</div></div>';
   var url = URL.createObjectURL(file);
   function fail(msg){ URL.revokeObjectURL(url); if(el) el.innerHTML='<div style="color:var(--red);padding:12px">❌ '+msg+'</div>'; }
-  function decode(){
-    try{
-      var reader = new ZXing.BrowserMultiFormatReader();
-      reader.decodeFromImageUrl(url).then(function(result){
-        URL.revokeObjectURL(url);
-        var code = result.getText();
-        var bi = document.getElementById('barcodeInput'); if(bi) bi.value = code;
-        lookupBarcode(code);
-      }).catch(function(){
-        fail(S.lang==='nl'
-          ? 'Geen barcode herkend. Maak een scherpere foto of tik het nummer hieronder in.'
-          : 'No barcode detected. Take a sharper photo or type the number below.');
-      });
-    }catch(e){ fail(S.lang==='nl'?'Scanner niet beschikbaar':'Scanner unavailable'); }
+  function done(code){ URL.revokeObjectURL(url); var bi=document.getElementById('barcodeInput'); if(bi) bi.value=code; lookupBarcode(code); }
+  async function decode(){
+    // Try native BarcodeDetector first
+    if('BarcodeDetector' in window){
+      try{
+        var det = new BarcodeDetector({ formats: BC_FORMATS });
+        var img = await createImageBitmap(file);
+        var codes = await det.detect(img);
+        if(codes && codes.length && codes[0].rawValue){ done(codes[0].rawValue); return; }
+      }catch(e){}
+    }
+    if(typeof ZXing !== 'undefined'){
+      try{
+        var hints = new Map(); hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+        var reader = new ZXing.BrowserMultiFormatReader(hints);
+        reader.decodeFromImageUrl(url).then(function(result){ done(result.getText()); })
+          .catch(function(){ fail(S.lang==='nl'?'Geen barcode herkend. Probeer live scannen of tik het nummer in.':'No barcode detected. Try live scan or enter the number.'); });
+        return;
+      }catch(e){}
+    }
+    fail(S.lang==='nl'?'Geen barcode herkend. Tik het nummer hieronder in.':'No barcode detected. Enter the number below.');
   }
-  if(typeof ZXing === 'undefined'){
-    var tries = 0;
-    var wait = setInterval(function(){
-      tries++;
-      if(typeof ZXing !== 'undefined'){ clearInterval(wait); decode(); }
-      else if(tries >= 12){ clearInterval(wait); fail(S.lang==='nl'?'Scanner nog niet geladen, probeer opnieuw':'Scanner not loaded yet, try again'); }
-    }, 300);
-  } else { decode(); }
+  decode();
 }
-function openCameraScanner(){ openBarcodeModal(); scanBarcodeNow(); } // kept for any old callers
-function stopCameraScan(){
-  // Kept for the modal close buttons; nothing live to stop in photo mode.
-  if(_codeReader){ try{ _codeReader.reset(); }catch(e){} _codeReader=null; }
-}
+function openCameraScanner(){ openBarcodeModal(); } // kept for any old callers
+function stopCameraScan(){ stopLiveScan(); } // alias kept for old close handlers
 
 // ===== EXPOSE ALL FUNCTIONS GLOBALLY =====
 window.showAuthPage       = showAuthPage;
@@ -2198,6 +2308,9 @@ window.addBarcodeFood     = addBarcodeFood;
 window.openCameraScanner  = openCameraScanner;
 window.stopCameraScan     = stopCameraScan;
 window.scanBarcodeNow     = scanBarcodeNow;
+window.startLiveScan      = startLiveScan;
+window.stopLiveScan       = stopLiveScan;
+window.toggleTorch        = toggleTorch;
 window.takePhoto          = takePhoto;
 window.onGenericCapture   = onGenericCapture;
 window.openWebcam         = openWebcam;
