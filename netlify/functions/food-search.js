@@ -38,14 +38,20 @@ exports.handler = async function(event) {
         p.nutriments &&
         p.nutriments['energy-kcal_100g'] > 0
       )
-      .map(p => ({
-        n: p.product_name + (p.brands ? ` (${p.brands.split(',')[0].trim()})` : ''),
+      .map(p => {
+        // Search-a-licious returns `brands` as an array; the legacy API used a
+        // comma-separated string. Handle both so we don't crash on .split().
+        const brand = Array.isArray(p.brands)
+          ? p.brands[0]
+          : (typeof p.brands === 'string' ? p.brands.split(',')[0] : '');
+        return {
+        n: p.product_name + (brand ? ` (${brand.trim()})` : ''),
         c: Math.round(p.nutriments['energy-kcal_100g'] || 0),
         p: Math.round(p.nutriments['proteins_100g']       || 0),
         k: Math.round(p.nutriments['carbohydrates_100g']  || 0),
         v: Math.round(p.nutriments['fat_100g']            || 0),
         src: 'off'  // mark as Open Food Facts result
-      }));
+      };});
 
     return {
       statusCode: 200,
