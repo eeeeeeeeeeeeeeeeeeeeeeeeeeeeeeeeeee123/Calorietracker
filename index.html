@@ -2161,7 +2161,7 @@ async function startLiveScan(){
   }
   try{
     _scanStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+      video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }
     });
   }catch(e){
     setScanStatus((S.lang==='nl'?'Kan camera niet openen: ':'Cannot open camera: ')+(e.message||e.name));
@@ -2170,7 +2170,8 @@ async function startLiveScan(){
   }
   if(video){ video.srcObject=_scanStream; try{ await video.play(); }catch(e){} }
   _scanning = true;
-  setScanStatus(S.lang==='nl'?'📷 Richt op de barcode...':'📷 Aim at the barcode...');
+  setScanStatus(S.lang==='nl'?'📷 Richt op de barcode — houd ’m stil en iets verder weg zodat de camera scherpstelt.':'📷 Aim at the barcode — hold steady and a bit further so the camera can focus.');
+  applyFocus();
   setupTorch();
 
   // Preferred path: native BarcodeDetector (Edge/Chrome/Android)
@@ -2222,6 +2223,18 @@ function stopLiveScan(){
   var tb=document.getElementById('torchBtn'); if(tb) tb.style.display='none';
 }
 
+function applyFocus(){
+  // Ask the camera for continuous autofocus where supported (helps webcams that
+  // otherwise stay fixed-focus and leave a close barcode blurry).
+  var track=_scanStream && _scanStream.getVideoTracks ? _scanStream.getVideoTracks()[0] : null;
+  if(!track || !track.getCapabilities || !track.applyConstraints) return;
+  try{
+    var caps=track.getCapabilities();
+    var adv=[];
+    if(caps.focusMode && caps.focusMode.indexOf('continuous')>=0) adv.push({ focusMode:'continuous' });
+    if(adv.length) track.applyConstraints({ advanced:adv }).catch(function(){});
+  }catch(e){}
+}
 function setupTorch(){
   var btn=document.getElementById('torchBtn'); if(!btn) return;
   var track=_scanStream && _scanStream.getVideoTracks ? _scanStream.getVideoTracks()[0] : null;
