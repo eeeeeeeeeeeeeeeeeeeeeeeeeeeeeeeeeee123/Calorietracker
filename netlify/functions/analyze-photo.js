@@ -1,6 +1,6 @@
-// Netlify Function: food-photo analysis via Groq (Llama 4 Scout vision).
-// Groq has a usable free tier in the EU, unlike Gemini's free tier (limit 0 here).
-// Set GROQ_API_KEY in Netlify > Site settings > Environment variables.
+// Netlify Function: AI food-photo analysis via Groq (Llama 4 vision).
+// Groq has a usable free tier in the EU (unlike Gemini's free tier = 0 here).
+// Set GROQ_API_KEY in your Netlify environment variables.
 exports.handler = async function(event) {
   if (event.httpMethod !== 'POST') return { statusCode:405, body:'Method not allowed' };
 
@@ -8,7 +8,7 @@ exports.handler = async function(event) {
   if (!GROQ_KEY) return {
     statusCode: 500,
     headers: { 'Access-Control-Allow-Origin': '*' },
-    body: JSON.stringify({ error: 'GROQ_API_KEY niet ingesteld in Netlify environment variables' })
+    body: JSON.stringify({ error: 'GROQ_API_KEY not set in Netlify environment variables' })
   };
 
   let body;
@@ -44,15 +44,16 @@ If you cannot identify food, return: {"items":[],"total":{"calories":0,"protein"
         },
         body: JSON.stringify({
           model: 'meta-llama/llama-4-scout-17b-16e-instruct',
-          temperature: 0.1,
-          max_tokens: 1024,
           messages: [{
             role: 'user',
             content: [
               { type: 'text', text: prompt },
               { type: 'image_url', image_url: { url: `data:${mimeType};base64,${imageBase64}` } }
             ]
-          }]
+          }],
+          temperature: 0.1,
+          max_tokens: 1024,
+          response_format: { type: 'json_object' }
         })
       }
     );
@@ -60,25 +61,25 @@ If you cannot identify food, return: {"items":[],"total":{"calories":0,"protein"
     const data = await resp.json();
     if (!resp.ok) {
       const raw = data.error?.message || 'Groq API error';
-      const isQuota = resp.status === 429 || /quota|rate.?limit|exceeded/i.test(raw);
+      const isQuota = resp.status === 429 || /quota|rate.?limit|RESOURCE_EXHAUSTED/i.test(raw);
       return {
         statusCode: resp.status || 500,
         headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' },
         body: JSON.stringify({
           error: isQuota
-            ? 'De AI-fotoanalyse heeft even zijn limiet bereikt. Probeer het zo opnieuw of voer het eten handmatig in.'
+            ? 'De AI-fotoanalyse heeft zijn limiet bereikt. Probeer het later opnieuw of voer het eten handmatig in.'
             : raw
         })
       };
     }
 
     let text = data.choices?.[0]?.message?.content || '';
-    // Strip markdown code fences if present
+    // Strip markdown code fences if the model wrapped the JSON
     text = text.replace(/```json\n?/g,'').replace(/```\n?/g,'').trim();
 
     let result;
     try { result = JSON.parse(text); }
-    catch(e) { throw new Error('Kon het AI-antwoord niet als JSON lezen'); }
+    catch(e) { throw new Error('Could not parse AI response as JSON'); }
 
     return {
       statusCode: 200,
