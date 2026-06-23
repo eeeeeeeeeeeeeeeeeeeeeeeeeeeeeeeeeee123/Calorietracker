@@ -1230,13 +1230,43 @@ function openFoodSearch(meal){
   setTimeout(()=>document.getElementById('foodSearchInput').focus(),100);
 }
 
+// Relevance score: how well a food name matches the typed query.
+// Higher = better. Used to sort local + Open Food Facts results together so
+// the closest match (incl. brand) bubbles to the top instead of plek 5.
+function foodRelevance(name, ql, tokens){
+  const n=(name||'').toLowerCase();
+  let s=0;
+  if(n===ql) s+=1000;                 // exact name
+  else if(n.startsWith(ql)) s+=500;   // starts with full query
+  else if(ql && n.includes(ql)) s+=250;
+  let matched=0;
+  for(const t of tokens){
+    const idx=n.indexOf(t);
+    if(idx<0) continue;
+    matched++;
+    // whole-word match (e.g. "oetker" in "(Dr. Oetker)") counts extra
+    const wholeWord=(idx===0||/[^a-z0-9]/.test(n[idx-1])) &&
+                    (idx+t.length>=n.length||/[^a-z0-9]/.test(n[idx+t.length]));
+    s+=wholeWord?50:20;
+    if(idx<15) s+=10;                  // match near the start
+  }
+  if(tokens.length && matched===tokens.length) s+=200; // all words present
+  s-=Math.min(n.length,80)*0.4;        // prefer shorter / tighter names
+  return s;
+}
+
 function searchFood(q){
   clearTimeout(searchT);
   if(q.length<1){const _pop=['Ei (heel)','Banaan','Rijst (gekookt)','Havermout (droog)','Kipfilet (gegrild)','Volkoren brood','Witbrood','Griekse yoghurt 0%','Skyr','Kwark (mager)','Appel','Pasta (gekookt)','Tonijn (blik in water)','Zalm (vers)','Proteïneshake (melk)','Avocado','Pindakaas','Halfvolle melk','Aardappel','Zoete aardappel','Sinaasappel','Blauwe bessen','Haverdrank'];const _popItems=_pop.map(n=>FOODS.find(f=>f.n===n)).filter(Boolean);window._searchResults=_popItems;renderFoodResults(_popItems,true);return;}
   searchT=setTimeout(async()=>{
-    const ql=q.toLowerCase();
-    // Local search first (instant)
-    const local=FOODS.filter(f=>f.n.toLowerCase().includes(ql)).slice(0,15);
+    const ql=q.toLowerCase().trim();
+    const tokens=ql.split(/[^a-z0-9]+/).filter(Boolean);
+    const score=(name)=>foodRelevance(name,ql,tokens);
+    // Local search first (instant) — every typed word must appear, ranked by relevance
+    const local=FOODS
+      .filter(f=>{const n=f.n.toLowerCase(); return tokens.every(t=>n.includes(t));})
+      .sort((a,b)=>score(b.n)-score(a.n))
+      .slice(0,15);
     window._searchResults=local;
     renderFoodResults(local);
     // Netlify Function proxy (fixes CORS)
@@ -1249,7 +1279,8 @@ function searchFood(q){
       const resp=await fetch(`/.netlify/functions/food-search?q=${encodeURIComponent(q)}`);
       const data=await resp.json();
       const api=(data.products||[]);
-      const combined=[...local,...api.filter(a=>!local.find(l=>l.n.toLowerCase()===a.n.toLowerCase()))];
+      const combined=[...local,...api.filter(a=>!local.find(l=>l.n.toLowerCase()===a.n.toLowerCase()))]
+        .sort((a,b)=>score(b.n)-score(a.n));
       window._searchResults=combined;
       renderFoodResults(combined);
     }catch(e){document.getElementById('offLoading')?.remove();}
