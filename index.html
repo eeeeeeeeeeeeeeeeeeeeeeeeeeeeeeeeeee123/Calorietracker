@@ -2395,17 +2395,27 @@ function toggleLogoutMenu(){
   }, 10);
 }
 
-function doLogout(){
+async function doLogout(){
+  document.getElementById('logoutDropdown')?.classList.remove('open');
+  // Wait for Firebase to actually clear the session, otherwise onAuthStateChanged
+  // can immediately re-log you in. Then wipe local data and hard-reload to login.
   try{
-    if(window._fb && window._fb.signOut && window._fb.fbAuth) window._fb.signOut(window._fb.fbAuth);
+    if(window._fb && window._fb.signOut && window._fb.fbAuth){
+      await Promise.race([
+        window._fb.signOut(window._fb.fbAuth),
+        new Promise(r=>setTimeout(r,2500)) // don't hang if offline
+      ]);
+    }
+  }catch(e){}
+  try{
+    localStorage.removeItem('bt_user');
+    localStorage.removeItem('bt_data');
+    localStorage.removeItem('bt_lastWeight');
+    localStorage.removeItem('bt_streakCelebDate');
   }catch(e){}
   window._fbUser = null;
-  if(typeof S !== 'undefined'){ S.user=null; S.meals={ontbijt:[],lunch:[],tussendoortje:[],avondeten:[]}; S.weightLog=[]; S.calLog={}; S.macroLog={}; S.activities=[]; S.recentFoods=[]; S.favorites=[]; S.water={date:'',count:0,goal:8}; S.editing=null; S.mealsDate=''; }
-  localStorage.removeItem('bt_user');
-  localStorage.removeItem('bt_data');
-  localStorage.removeItem('bt_lastWeight');
-  showAuthPage('loginPage');
-  document.getElementById('logoutDropdown')?.classList.remove('open');
+  if(typeof S !== 'undefined'){ S.user=null; }
+  location.reload();
 }
 
 // ===== PHOTO CAPTURE HELPER (mobile camera + desktop webcam) =====
