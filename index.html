@@ -489,7 +489,6 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
   <!-- PROFILE PAGE -->
   <div class="page active" id="profilePage">
     <div class="profile-hero">
-      <button onclick="doLogout()" style="position:absolute;top:16px;right:16px;background:rgba(255,255,255,0.2);border:none;color:white;padding:8px 14px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;z-index:2">🚪 <span data-nl="Uitloggen" data-en="Log out">Uitloggen</span></button>
       <div class="profile-name" id="heroName">Hey, Baran! 👋</div>
       <div class="profile-goal-badge" id="heroGoal">🎯 Doel: Afvallen</div>
       <div id="streakBadge" style="display:inline-block;margin-left:10px"></div>
@@ -509,6 +508,7 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
   <input type="number" class="num-input" id="newWeightInput" value="75" min="20" max="400" step="0.5" style="margin-bottom:0;flex:1">
   <button class="btn-sm" onclick="logWeight()" data-nl="Opslaan" data-en="Save">Opslaan</button>
 </div>
+        <div id="weightHistory" style="margin-top:14px"></div>
       </div>
       <div class="card">
         <div class="card-title">📊 <span data-nl="Vandaag" data-en="Today">Vandaag</span></div>
@@ -528,7 +528,7 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
   <!-- FOOD PAGE -->
   <div class="page" id="foodPage">
     <div class="page-title" data-nl="🍽️ Eten" data-en="🍽️ Food">🍽️ Eten</div>
-    <div class="page-sub" id="foodDateSub">Vandaag</div>
+    <div class="page-sub" id="foodDateSub" data-nl="Vandaag" data-en="Today">Vandaag</div>
     <div class="daily-summary">
       <div class="cal-ring">
         <svg width="80" height="80" viewBox="0 0 80 80">
@@ -681,7 +681,7 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
       <span class="search-icon">🔍</span>
       <input type="text" class="search-input" id="foodSearchInput" data-placeholder-nl="Bijv. wraps, doner, pizza, brood..." data-placeholder-en="E.g. wraps, doner, pizza, bread..." placeholder="Bijv. wraps, doner, pizza, brood..." oninput="searchFood(this.value)">
     </div>
-    <div style="font-size:12px;color:var(--gray-400);margin-bottom:12px">💡 Open Food Facts + lokale database van 200+ producten</div>
+    <div style="font-size:12px;color:var(--gray-400);margin-bottom:12px" data-nl="💡 Open Food Facts + lokale database van 400+ producten" data-en="💡 Open Food Facts + local database of 400+ products">💡 Open Food Facts + lokale database van 400+ producten</div>
     <div id="foodSearchResults" class="search-results"></div>
     <div id="portionSelect" class="portion-select"><div id="portionHint" style="font-size:12px;color:var(--green-dark);font-weight:600;margin-bottom:8px;text-align:center"></div>
       <div class="portion-row">
@@ -1225,8 +1225,27 @@ async function saveData(){
 }
 
 // ===== PROFILE =====
+function renderWeightHistory(){
+  const el=document.getElementById('weightHistory'); if(!el) return;
+  // Latest entry per day, newest first.
+  const byDay={};
+  (S.weightLog||[]).forEach(w=>{ byDay[w.date]=w.weight; });
+  const days=Object.keys(byDay).sort((a,b)=>a<b?1:-1);
+  if(days.length<1){ el.innerHTML=''; return; }
+  const title=(S.lang==='nl'?'Vorige metingen':'Previous entries').toUpperCase();
+  let html='<div style="font-size:11px;font-weight:700;color:var(--gray-400);letter-spacing:.5px;margin-bottom:6px">'+title+'</div>';
+  html+=days.slice(0,6).map((date,i)=>{
+    const wv=byDay[date];
+    const older=days[i+1]?byDay[days[i+1]]:null;
+    let delta='';
+    if(older!=null){ const d=Math.round((wv-older)*10)/10; if(d!==0){ const up=d>0; delta=`<span style="font-size:12px;font-weight:600;color:${up?'var(--red)':'var(--green-dark)'}">${up?'▲':'▼'} ${Math.abs(d)} kg</span>`; } }
+    const ds=new Date(date).toLocaleDateString(S.lang==='nl'?'nl-NL':'en-US',{day:'numeric',month:'short'});
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--gray-100)"><span style="font-size:13px;color:var(--gray-600)">${ds}</span><span style="display:flex;gap:8px;align-items:center"><span style="font-weight:700;font-size:14px">${wv} kg</span>${delta}</span></div>`;
+  }).join('');
+  el.innerHTML=html;
+}
 function updateProfileUI(){
-  renderStreakBadge();initWeightInput();
+  renderStreakBadge();initWeightInput();renderWeightHistory();
   const u=S.user;if(!u)return;
   const initials=(u.name||'B').split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2);
   document.getElementById('userAvatar').textContent=initials;
@@ -1257,11 +1276,11 @@ function getTodayBurned(){return S.activities.filter(a=>a.date===todayStr()).red
 
 function logWeight(){
   const val=parseFloat(document.getElementById('newWeightInput').value);
-  if(!val||val<20||val>400){showNotif('❌ Voer geldig gewicht in');return;}
+  if(!val||val<20||val>400){showNotif('❌ '+(S.lang==='nl'?'Voer geldig gewicht in':'Enter a valid weight'));return;}
   S.weightLog.push({date:todayStr(),weight:val});S.user.weight=val;
   localStorage.setItem('bt_lastWeight',String(val));
   saveData();updateProfileUI();renderLogbook();renderStreakBadge();
-  showNotif('✅ Gewicht opgeslagen!');
+  showNotif('✅ '+(S.lang==='nl'?'Gewicht opgeslagen!':'Weight saved!'));
   document.getElementById('newWeightInput').value=val;
 }
 
@@ -1526,7 +1545,7 @@ function addManualFood(){
   const carbs=parseFloat(document.getElementById('manFoodCarbs').value)||0;
   const fat=parseFloat(document.getElementById('manFoodFat').value)||0;
   const grams=parseFloat(document.getElementById('manFoodGrams').value)||100;
-  if(!name||!cal){showNotif('❌ Vul naam en calorieën in');return;}
+  if(!name||!cal){showNotif('❌ '+(S.lang==='nl'?'Vul naam en calorieën in':'Enter name and calories'));return;}
   const r=grams/100;
   pushFoodItem({name,grams,cal:Math.round(cal*r),protein:Math.round(protein*r),carbs:Math.round(carbs*r),fat:Math.round(fat*r)});
   // Clear fields
@@ -1539,7 +1558,7 @@ function pushFoodItem(item){
   S.meals[S.currentMeal].push(item);
   saveDayLog();renderMeals();updateFoodSummary();updateProfileUI();
   closeModal('foodSearchModal');
-  showNotif('✅ '+item.name+' toegevoegd!');
+  showNotif('✅ '+item.name+(S.lang==='nl'?' toegevoegd!':' added!'));
 }
 
 function removeFood(meal,id){
@@ -1572,7 +1591,7 @@ function renderMeals(){
     document.getElementById('cals-'+meal).textContent=total+' kcal';
     const icons={ontbijt:'🌅',lunch:'☀️',tussendoortje:'🍎',avondeten:'🌙'};
     document.getElementById('items-'+meal).innerHTML=items.length===0
-      ?`<div class="empty-state"><div class="empty-icon">${icons[meal]}</div><span>Nog niets gelogd</span></div>`
+      ?`<div class="empty-state"><div class="empty-icon">${icons[meal]}</div><span>${S.lang==='nl'?'Nog niets gelogd':'Nothing logged yet'}</span></div>`
       :items.map(f=>{
         const editing=S.editing&&S.editing.meal===meal&&S.editing.id===f.id;
         if(editing){
@@ -1648,6 +1667,7 @@ async function lookupBarcode(code){
       const food=d.food;
       window._bcFood=food;            // keep the product; avoids fragile onclick serialization
       const dm=defaultMeal();
+      const bcPortion=guessServing(food.n)||100;   // estimate "1 portion" instead of always 100g
       // Display result
       el.innerHTML=`<div style="background:var(--green-xlight);border-radius:10px;padding:16px">
         ${food.img?`<img src="${food.img}" style="width:60px;height:60px;object-fit:contain;float:right;border-radius:8px">`:''}
@@ -1655,9 +1675,10 @@ async function lookupBarcode(code){
         ${food.brand?`<div style="font-size:12px;color:var(--gray-400);margin-bottom:8px">${food.brand}</div>`:''}
         <div style="font-size:13px;color:var(--gray-600)">🔥 ${food.c} kcal &nbsp;|&nbsp; P: ${food.p}g &nbsp;K: ${food.k}g &nbsp;V: ${food.v}g</div>
         <div style="font-size:11px;color:var(--gray-400);margin-top:4px">per 100g</div>
-        <div style="margin-top:12px;display:flex;align-items:center;gap:8px">
+        <div style="font-size:11px;color:var(--green-dark);font-weight:600;margin-top:10px">${S.lang==='nl'?'💡 1 portie ≈ '+bcPortion+'g (pas aan indien nodig)':'💡 1 serving ≈ '+bcPortion+'g (adjust if needed)'}</div>
+        <div style="margin-top:6px;display:flex;align-items:center;gap:8px">
           <label style="font-size:13px;color:var(--gray-600);white-space:nowrap">${S.lang==='nl'?'Gram:':'Grams:'}</label>
-          <input type="number" id="bcGrams" class="form-input" value="100" min="1" max="9999" style="margin-bottom:0;flex:1">
+          <input type="number" id="bcGrams" class="form-input" value="${bcPortion}" min="1" max="9999" style="margin-bottom:0;flex:1">
         </div>
         <div style="margin-top:8px;display:flex;align-items:center;gap:8px">
           <label style="font-size:13px;color:var(--gray-600);white-space:nowrap">${S.lang==='nl'?'Maaltijd:':'Meal:'}</label>
@@ -1679,21 +1700,24 @@ async function lookupBarcode(code){
   }
 }
 function addPhotoFoods(items){
-  const meal=S.currentMeal||'lunch';
-  items.forEach(item=>{
-    const food={
-      n:item.name,
-      c:Math.round(item.per100g.calories*item.grams/100),
-      p:Math.round(item.per100g.protein*item.grams/100),
-      k:Math.round(item.per100g.carbs*item.grams/100),
-      v:Math.round(item.per100g.fat*item.grams/100),
-      g:item.grams,
+  const meal=S.currentMeal||defaultMeal();
+  if(!S.meals[meal])S.meals[meal]=[];
+  items.forEach((item,idx)=>{
+    const grams=item.grams||guessServing(item.name)||100;  // estimate portion if the AI didn't give one
+    const r=grams/100;
+    const pg=item.per100g||{};
+    S.meals[meal].push({
+      id:Date.now()+idx,
+      name:item.name,
+      grams:grams,
+      cal:Math.round((pg.calories||0)*r),
+      protein:Math.round((pg.protein||0)*r),
+      carbs:Math.round((pg.carbs||0)*r),
+      fat:Math.round((pg.fat||0)*r),
       src:'ai'
-    };
-    if(!S.meals[meal])S.meals[meal]=[];
-    S.meals[meal].push(food);
+    });
   });
-  saveDayLog();renderMeals();updateDashboard();
+  saveDayLog();renderMeals();updateFoodSummary();updateProfileUI();
   document.getElementById('photoModal')?.classList.remove('open');
   showNotif('✅ '+(S.lang==='nl'?`${items.length} items toegevoegd`:`${items.length} items added`));
 }
@@ -1949,7 +1973,10 @@ document.querySelectorAll('.modal-overlay').forEach(el=>el.addEventListener('cli
 
 // ===== LANG =====
 function setLang(lang,btn){S.lang=lang;document.querySelectorAll('.lang-btn').forEach(b=>b.classList.remove('active'));if(btn)btn.classList.add('active');applyLang();}
-function setLangApp(lang,btn){S.lang=lang;document.querySelectorAll('.lang-btn-app').forEach(b=>b.classList.remove('active'));if(btn)btn.classList.add('active');applyLang();renderActivities(document.getElementById('activitySearchInput')?.value||'');}
+function setLangApp(lang,btn){S.lang=lang;document.querySelectorAll('.lang-btn-app').forEach(b=>b.classList.remove('active'));if(btn)btn.classList.add('active');applyLang();renderActivities(document.getElementById('activitySearchInput')?.value||'');
+  // Re-render dynamic (JS-built) content so it switches language too.
+  try{ renderMeals(); renderWater(); renderWeightHistory(); }catch(e){}
+}
 function applyLang(){
   const l=S.lang;
   document.querySelectorAll('[data-nl]').forEach(el=>{if(el.children.length===0)el.textContent=l==='nl'?el.getAttribute('data-nl'):el.getAttribute('data-en');});
@@ -2007,10 +2034,17 @@ function renderStreakBadge(){
 // Firebase hooks called by the module script above
 window._S=null; // set after S is declared
 window._fbReady=function(user){
-  // Called when Firebase confirms user is logged in
+  // Called when Firebase confirms user is logged in.
+  // S.user may already hold the COMPLETE profile from Firestore (set in the
+  // module's onAuthStateChanged). Merge instead of overwrite so a partial
+  // localStorage copy (e.g. {name,email,uid}) can't wipe goalWeight/height/tdee.
   const stored=localStorage.getItem('bt_user');
-  if(stored){S.user=JSON.parse(stored);}
+  const local=stored?JSON.parse(stored):null;
+  const remote=S.user||null;
+  if(remote||local){ S.user={...(remote||{}),...(local||{})}; }
   if(!S.user){S.user={name:user.displayName||user.email.split('@')[0],email:user.email,uid:user.uid};}
+  // Heal the stale localStorage copy with the merged (complete) profile.
+  if(S.user){ try{ localStorage.setItem('bt_user',JSON.stringify(S.user)); }catch(e){} }
   loadUserData();
   launchApp();
   renderStreakBadge&&renderStreakBadge();
@@ -2046,7 +2080,12 @@ function renderWeightChart(){
   const BOTTOM=28, TOP=14;
   const W=canvas.offsetWidth||canvas.parentElement?.offsetWidth||400;
   const H=200;
-  canvas.width=W; canvas.height=H;
+  // Scale the backing store for the screen's pixel ratio so lines/text are crisp,
+  // not blurry, on high-DPI (retina) displays.
+  const dpr=window.devicePixelRatio||1;
+  canvas.width=Math.round(W*dpr); canvas.height=Math.round(H*dpr);
+  canvas.style.width=W+'px'; canvas.style.height=H+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
   ctx.clearRect(0,0,W,H);
 
   const now=new Date();
