@@ -792,7 +792,7 @@ const S = {
   lang:'nl', user:null,
   meals:{ontbijt:[],lunch:[],tussendoortje:[],avondeten:[]},
   activities:[], weightLog:[], calLog:{}, macroLog:{},
-  recentFoods:[], favorites:[], water:{date:'',count:0,goal:8},
+  recentFoods:[], favorites:[], water:{date:'',count:0,goal:8}, mealsDate:'',
   selectedActivity:null, currentMeal:null, selectedFood:null, selectedPortion:100, editing:null, calPeriod:'week'
 };
 
@@ -1234,12 +1234,13 @@ function launchApp(){
 
 function loadUserData(){
   const d=localStorage.getItem('bt_data');
-  if(d){const p=JSON.parse(d);S.meals=p.meals||S.meals;S.activities=p.activities||[];S.weightLog=p.weightLog||[];S.calLog=p.calLog||{};S.macroLog=p.macroLog||{};S.recentFoods=p.recentFoods||[];S.favorites=p.favorites||[];S.water=p.water||{date:'',count:0,goal:8};}
+  if(d){const p=JSON.parse(d);S.meals=p.meals||S.meals;S.activities=p.activities||[];S.weightLog=p.weightLog||[];S.calLog=p.calLog||{};S.macroLog=p.macroLog||{};S.recentFoods=p.recentFoods||[];S.favorites=p.favorites||[];S.water=p.water||{date:'',count:0,goal:8};S.mealsDate=p.mealsDate||'';}
   ensureWaterToday();
+  rolloverDay();
 }
 async function saveData(){
   if(S.user)localStorage.setItem('bt_user',JSON.stringify(S.user));
-  const dataObj={meals:S.meals,activities:S.activities,weightLog:S.weightLog,calLog:S.calLog,macroLog:S.macroLog,recentFoods:S.recentFoods,favorites:S.favorites,water:S.water};
+  const dataObj={meals:S.meals,activities:S.activities,weightLog:S.weightLog,calLog:S.calLog,macroLog:S.macroLog,recentFoods:S.recentFoods,favorites:S.favorites,water:S.water,mealsDate:S.mealsDate};
   localStorage.setItem('bt_data',JSON.stringify(dataObj));
   // Also save to Firestore if logged in
   const uid=window._fbUser?.uid||S.user?.uid;
@@ -1602,13 +1603,44 @@ function showStreakCelebration(){
   const el = document.getElementById('streakCelebrate');
   if(el){ el.style.display='flex'; setTimeout(()=>el.style.display='none',4000); }
 }
+// Reset the day's meals when the calendar day changes. The finished day's
+// totals stay in calLog/macroLog (used for the streak & charts), only the
+// detailed meal list is cleared. Returns true if a reset happened.
+function rolloverDay(){
+  const t=todayStr();
+  let didReset=false;
+  if(S.mealsDate && S.mealsDate!==t){
+    const all=Object.values(S.meals).flat();
+    if(all.length){
+      S.calLog[S.mealsDate]=all.reduce((s,f)=>s+(f.cal||0),0);
+      S.macroLog[S.mealsDate]={protein:all.reduce((s,f)=>s+(f.protein||0),0),carbs:all.reduce((s,f)=>s+(f.carbs||0),0),fat:all.reduce((s,f)=>s+(f.fat||0),0)};
+    }
+    S.meals={ontbijt:[],lunch:[],tussendoortje:[],avondeten:[]};
+    didReset=true;
+    saveData();
+  }
+  S.mealsDate=t;
+  return didReset;
+}
 function saveDayLog(){
   const today=todayStr();
+  if(!S.mealsDate) S.mealsDate=today;
   S.calLog[today]=getTodayCals();
   const all=Object.values(S.meals).flat();
   S.macroLog[today]={protein:all.reduce((s,f)=>s+(f.protein||0),0),carbs:all.reduce((s,f)=>s+(f.carbs||0),0),fat:all.reduce((s,f)=>s+(f.fat||0),0)};
   saveData();
   renderStreakBadge();
+  maybeCelebrateStreak();
+}
+// Show the streak celebration once per day — the first time food is logged that
+// day (which is what extends the streak).
+function maybeCelebrateStreak(){
+  const today=todayStr();
+  if(!(S.calLog[today]>0)) return;
+  if(localStorage.getItem('bt_streakCelebDate')===today) return;
+  if(calcStreak()<1) return;
+  localStorage.setItem('bt_streakCelebDate',today);
+  showStreakCelebration();
 }
 
 function renderMeals(){
@@ -2308,6 +2340,17 @@ document.addEventListener('DOMContentLoaded',function(){
   if(wbtn) wbtn.classList.add('active');
 });
 
+// If the app is left open past midnight, reset the day when it regains focus.
+document.addEventListener('visibilitychange',function(){
+  if(document.hidden || !S.user) return;
+  if(rolloverDay()){
+    ensureWaterToday();
+    renderMeals&&renderMeals();
+    updateFoodSummary&&updateFoodSummary();
+    updateProfileUI&&updateProfileUI();
+  }
+});
+
 // ===== EXPOSE FUNCTIONS TO WINDOW =====
 window.openCameraScanner = openCameraScanner;
 window.stopCameraScan    = stopCameraScan;
@@ -2357,7 +2400,7 @@ function doLogout(){
     if(window._fb && window._fb.signOut && window._fb.fbAuth) window._fb.signOut(window._fb.fbAuth);
   }catch(e){}
   window._fbUser = null;
-  if(typeof S !== 'undefined'){ S.user=null; S.meals={ontbijt:[],lunch:[],tussendoortje:[],avondeten:[]}; S.weightLog=[]; S.calLog={}; S.macroLog={}; S.activities=[]; S.recentFoods=[]; S.favorites=[]; S.water={date:'',count:0,goal:8}; S.editing=null; }
+  if(typeof S !== 'undefined'){ S.user=null; S.meals={ontbijt:[],lunch:[],tussendoortje:[],avondeten:[]}; S.weightLog=[]; S.calLog={}; S.macroLog={}; S.activities=[]; S.recentFoods=[]; S.favorites=[]; S.water={date:'',count:0,goal:8}; S.editing=null; S.mealsDate=''; }
   localStorage.removeItem('bt_user');
   localStorage.removeItem('bt_data');
   localStorage.removeItem('bt_lastWeight');
