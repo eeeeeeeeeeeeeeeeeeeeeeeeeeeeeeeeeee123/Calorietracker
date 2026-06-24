@@ -1094,6 +1094,7 @@ async function doLogin(){
   const email=document.getElementById('loginEmail').value.trim();
   const pass=document.getElementById('loginPass').value;
   if(!email||!pass){showNotif('❌ Vul alle velden in');return;}
+  localStorage.removeItem('bt_loggedOut');
   const btn=document.querySelector('#loginPage .btn-primary');
   btn.textContent=S.lang==='nl'?'Inloggen...':'Logging in...';btn.disabled=true;
   try{
@@ -1122,6 +1123,7 @@ async function doRegister(){
   const pass=document.getElementById('regPass').value;
   if(!name||!email||!pass){showNotif('❌ Vul alle velden in');return;}
   if(pass.length<6){showNotif('❌ Wachtwoord min. 6 tekens');return;}
+  localStorage.removeItem('bt_loggedOut');
   const btn=document.querySelector('#registerPage .btn-primary');
   btn.textContent=S.lang==='nl'?'Account aanmaken...':'Creating account...';btn.disabled=true;
   try{
@@ -2094,6 +2096,13 @@ function renderStreakBadge(){
 window._S=null; // set after S is declared
 window._fbReady=function(user){
   // Called when Firebase confirms user is logged in.
+  if(localStorage.getItem('bt_loggedOut')==='1'){
+    // User explicitly logged out — ignore a lingering Firebase session so we
+    // don't auto-relogin on reload.
+    try{ window._fb && window._fb.signOut && window._fb.signOut(window._fb.fbAuth); }catch(e){}
+    showAuthPage('loginPage');
+    return;
+  }
   // S.user may already hold the COMPLETE profile from Firestore (set in the
   // module's onAuthStateChanged). Merge instead of overwrite so a partial
   // localStorage copy (e.g. {name,email,uid}) can't wipe goalWeight/height/tdee.
@@ -2411,6 +2420,7 @@ async function doLogout(){
     }
   }catch(e){}
   try{
+    localStorage.setItem('bt_loggedOut','1'); // block Firebase auto-relogin on reload
     localStorage.removeItem('bt_user');
     localStorage.removeItem('bt_data');
     localStorage.removeItem('bt_lastWeight');
