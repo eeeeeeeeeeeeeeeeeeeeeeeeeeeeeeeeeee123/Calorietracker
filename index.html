@@ -2157,12 +2157,22 @@ function renderWeightChart(){
 
   let pts=[], labels=[];
   if(_weightPeriod==='week'){
-    for(let i=6;i>=0;i--){
-      const d=new Date(now);d.setDate(d.getDate()-i);
+    // Fixed Monday -> Sunday of the CURRENT week (resets every week). Monday is
+    // seeded with the latest known weight so the line has a starting point.
+    const wl=lang==='nl'?['ma','di','wo','do','vr','za','zo']:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    const dow=(now.getDay()+6)%7; // 0=Mon .. 6=Sun
+    for(let i=0;i<7;i++){
+      const d=new Date(now);d.setDate(now.getDate()-dow+i);
       const key=d.toISOString().split('T')[0];
       const found=S.weightLog.filter(w=>w.date===key);
-      pts.push(found.length?found[found.length-1].weight:null);
-      labels.push(dayN[d.getDay()]);
+      let val=found.length?found[found.length-1].weight:null;
+      if(i===0 && val===null){
+        // No Monday weigh-in yet: carry the most recent earlier weight onto Monday.
+        const prev=S.weightLog.filter(w=>w.date<key).sort((a,b)=>a.date<b.date?-1:1);
+        if(prev.length) val=prev[prev.length-1].weight;
+      }
+      pts.push(val);
+      labels.push(wl[i]);
     }
   } else if(_weightPeriod==='month'){
     for(let i=29;i>=0;i--){
@@ -2382,17 +2392,10 @@ function selectGender(el, val){
 }
 
 function toggleLogoutMenu(){
-  const dd = document.getElementById('logoutDropdown');
-  if(!dd) return;
-  dd.classList.toggle('open');
-  setTimeout(function(){
-    document.addEventListener('click', function closeDD(e){
-      if(!e.target.closest('#userAvatar') && !e.target.closest('#logoutDropdown')){
-        dd.classList.remove('open');
-        document.removeEventListener('click', closeDD);
-      }
-    });
-  }, 10);
+  // Bulletproof across devices: a native confirm can't be clipped, hidden, or
+  // mis-tapped like a CSS dropdown. Clicking the avatar = "option to log out".
+  const ok = window.confirm(S.lang==='en' ? 'Do you want to log out?' : 'Wil je uitloggen?');
+  if(ok) doLogout();
 }
 
 async function doLogout(){
