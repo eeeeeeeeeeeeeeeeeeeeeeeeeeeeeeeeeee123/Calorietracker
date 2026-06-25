@@ -1,0 +1,14 @@
+{
+  "name": "BaranTrack",
+  "short_name": "BaranTrack",
+  "description": "Calorie- en activiteitentracker",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#22c55e",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

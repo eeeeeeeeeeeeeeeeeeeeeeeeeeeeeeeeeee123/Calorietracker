@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>BaranTrack</title>
+<!-- PWA: installable + offline -->
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#22c55e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="BaranTrack">
+<link rel="apple-touch-icon" href="/icon.svg">
+<link rel="icon" type="image/svg+xml" href="/icon.svg">
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
 <!-- Firebase -->
 <script type="module">
@@ -1124,7 +1132,7 @@ function showAuthPage(id){
 async function doLogin(){
   const email=document.getElementById('loginEmail').value.trim();
   const pass=document.getElementById('loginPass').value;
-  if(!email||!pass){showNotif('❌ Vul alle velden in');return;}
+  if(!email||!pass){showNotif('❌ '+L('Vul alle velden in','Fill in all fields'));return;}
   localStorage.removeItem('bt_loggedOut');
   const btn=document.querySelector('#loginPage .btn-primary');
   btn.textContent=S.lang==='nl'?'Inloggen...':'Logging in...';btn.disabled=true;
@@ -1133,9 +1141,9 @@ async function doLogin(){
     if(!fb||document.getElementById('fbConfig')?.dataset.configured==='false'){
       // Fallback: localStorage login
       const stored=localStorage.getItem('bt_user');
-      if(!stored){showNotif('❌ Geen account gevonden');btn.textContent='Inloggen';btn.disabled=false;return;}
+      if(!stored){showNotif('❌ '+L('Geen account gevonden','No account found'));btn.textContent=L('Inloggen','Log in');btn.disabled=false;return;}
       const user=JSON.parse(stored);
-      if(user.email!==email){showNotif('❌ Email of wachtwoord onjuist');btn.textContent='Inloggen';btn.disabled=false;return;}
+      if(user.email!==email){showNotif('❌ '+L('Email of wachtwoord onjuist','Wrong email or password'));btn.textContent=L('Inloggen','Log in');btn.disabled=false;return;}
       S.user=user;loadUserData();launchApp();return;
     }
     await fb.signInWithEmailAndPassword(fb.fbAuth,email,pass);
@@ -1152,8 +1160,8 @@ async function doRegister(){
   const name=document.getElementById('regName').value.trim();
   const email=document.getElementById('regEmail').value.trim();
   const pass=document.getElementById('regPass').value;
-  if(!name||!email||!pass){showNotif('❌ Vul alle velden in');return;}
-  if(pass.length<6){showNotif('❌ Wachtwoord min. 6 tekens');return;}
+  if(!name||!email||!pass){showNotif('❌ '+L('Vul alle velden in','Fill in all fields'));return;}
+  if(pass.length<6){showNotif('❌ '+L('Wachtwoord min. 6 tekens','Password min. 6 characters'));return;}
   localStorage.removeItem('bt_loggedOut');
   const btn=document.querySelector('#registerPage .btn-primary');
   btn.textContent=S.lang==='nl'?'Account aanmaken...':'Creating account...';btn.disabled=true;
@@ -1179,9 +1187,9 @@ let qData={goal:null,actLevel:1.375};
 function selectGoal(el,goal){document.querySelectorAll('#step0 .goal-option').forEach(o=>o.classList.remove('selected'));el.classList.add('selected');qData.goal=goal;}
 function selectActivity(el,val){document.querySelectorAll('#step3 .goal-option').forEach(o=>o.classList.remove('selected'));el.classList.add('selected');qData.actLevel=val;}
 function nextStep(cur){
-  if(cur===0&&!qData.goal){showNotif('❌ Kies een doel');return;}
-  if(cur===1&&(!document.getElementById('qAge').value||!document.getElementById('qHeight').value)){showNotif('❌ Vul je gegevens in');return;}
-  if(cur===2&&(!document.getElementById('qWeight').value||!document.getElementById('qGoalWeight').value)){showNotif('❌ Vul je gewicht in');return;}
+  if(cur===0&&!qData.goal){showNotif('❌ '+L('Kies een doel','Choose a goal'));return;}
+  if(cur===1&&(!document.getElementById('qAge').value||!document.getElementById('qHeight').value)){showNotif('❌ '+L('Vul je gegevens in','Fill in your details'));return;}
+  if(cur===2&&(!document.getElementById('qWeight').value||!document.getElementById('qGoalWeight').value)){showNotif('❌ '+L('Vul je gewicht in','Fill in your weight'));return;}
   document.getElementById('step'+cur).classList.remove('active');
   document.getElementById('step'+(cur+1)).classList.add('active');
   document.getElementById('dot'+cur).classList.remove('active');
@@ -1205,7 +1213,7 @@ function goToCalorieStep(){
   document.getElementById('step4').style.display='block';
 }
 function finishQuest(){
-  if(!qData.actLevel){showNotif('❌ Kies activiteitsniveau');return;}
+  if(!qData.actLevel){showNotif('❌ '+L('Kies activiteitsniveau','Choose an activity level'));return;}
   const age=parseInt(document.getElementById('qAge').value);
   const height=parseInt(document.getElementById('qHeight').value);
   const gender=document.getElementById('qGender').value;
@@ -1341,6 +1349,8 @@ function getTodayBurned(){return S.activities.filter(a=>a.date===todayStr()).red
 
 // Escape free-text (food/product names) before putting it in innerHTML.
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+// Quick bilingual string helper for dynamic (JS-generated) text.
+function L(nl,en){ return S.lang==='en'?en:nl; }
 
 // Recalculate the daily calorie goal from the CURRENT weight (Mifflin-St Jeor),
 // unless the user set a custom goal themselves.
@@ -2016,23 +2026,23 @@ function logActivity(){
   S.activities.push({id:Date.now(),date:todayStr(),name:S.lang==='nl'?S.selectedActivity.n:S.selectedActivity.e,icon:S.selectedActivity.i,duration:dur,distance:dist,burned});
   pruneActivities();
   saveData();renderLoggedActivities();updateProfileUI();
-  showNotif('✅ Activiteit opgeslagen! -'+burned+' kcal');
+  showNotif('✅ '+L('Activiteit opgeslagen!','Activity saved!')+' -'+burned+' kcal');
 }
 function logManualActivity(){
   const name=document.getElementById('manActName').value.trim();
   const dur=parseFloat(document.getElementById('manActDuration').value)||0;
   const burned=parseFloat(document.getElementById('manActCal').value)||0;
-  if(!name||!burned){showNotif('❌ Vul naam en calorieën in');return;}
+  if(!name||!burned){showNotif('❌ '+L('Vul naam en calorieën in','Fill in name and calories'));return;}
   S.activities.push({id:Date.now(),date:todayStr(),name,icon:'💪',duration:dur,distance:null,burned});
   pruneActivities();
   saveData();renderLoggedActivities();updateProfileUI();
-  showNotif('✅ '+name+' opgeslagen! -'+burned+' kcal');
+  showNotif('✅ '+name+' '+L('opgeslagen!','saved!')+' -'+burned+' kcal');
   ['manActName','manActDuration','manActCal'].forEach(id=>document.getElementById(id).value='');
 }
 function renderLoggedActivities(){
   const today=S.activities.filter(a=>a.date===todayStr());
   document.getElementById('loggedActivitiesList').innerHTML=today.length===0
-    ?'<div class="empty-state"><div class="empty-icon">🏃</div>Nog geen activiteiten</div>'
+    ?'<div class="empty-state"><div class="empty-icon">🏃</div>'+L('Nog geen activiteiten','No activities yet')+'</div>'
     :today.map(a=>`<div class="log-item"><div class="log-item-left"><div class="log-item-icon">${a.icon}</div><div><div class="log-item-name">${esc(a.name)}</div><div class="log-item-detail">${a.duration} min${a.distance?' · '+a.distance+' km':''}</div></div></div><div style="display:flex;align-items:center;gap:10px"><div class="log-item-cal">-${a.burned} kcal</div><button class="food-item-del" onclick="removeActivity(${a.id})">✕</button></div></div>`).join('');
 }
 function removeActivity(id){
@@ -2157,7 +2167,7 @@ document.querySelectorAll('.modal-overlay').forEach(el=>el.addEventListener('cli
 function setLang(lang,btn){S.lang=lang;document.querySelectorAll('.lang-btn').forEach(b=>b.classList.remove('active'));if(btn)btn.classList.add('active');applyLang();}
 function setLangApp(lang,btn){S.lang=lang;document.querySelectorAll('.lang-btn-app').forEach(b=>b.classList.remove('active'));if(btn)btn.classList.add('active');applyLang();renderActivities(document.getElementById('activitySearchInput')?.value||'');
   // Re-render dynamic (JS-built) content so it switches language too.
-  try{ renderMeals(); renderWater(); renderWeightHistory(); }catch(e){}
+  try{ renderMeals(); renderWater(); renderWeightHistory(); renderLoggedActivities(); updateFoodSummary(); updateProfileUI(); }catch(e){}
 }
 function applyLang(){
   const l=S.lang;
@@ -2867,5 +2877,11 @@ window.updateDashboard    = function(){ renderMeals&&renderMeals(); renderCalBar
     <button class="btn-primary" style="width:100%" onclick="document.getElementById('streakCelebrate').style.display='none'" data-nl="💪 Doorgaan!" data-en="💪 Keep going!">💪 Doorgaan!</button>
   </div>
 </div>
+<!-- PWA service worker -->
+<script>
+if('serviceWorker' in navigator){
+  window.addEventListener('load',function(){ navigator.serviceWorker.register('/sw.js').catch(function(){}); });
+}
+</script>
 </body>
 </html>
