@@ -496,7 +496,7 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
         <div class="profile-stat"><div class="profile-stat-val" id="heroWeight">—</div><div class="profile-stat-lbl" data-nl="Huidig gewicht" data-en="Current weight">Huidig gewicht</div></div>
         <div class="profile-stat"><div class="profile-stat-val" id="heroGoalW">—</div><div class="profile-stat-lbl" data-nl="Doelgewicht" data-en="Target weight">Doelgewicht</div></div>
         <div class="profile-stat"><div class="profile-stat-val" id="heroBMI">—</div><div class="profile-stat-lbl">BMI</div></div>
-        <div class="profile-stat"><div class="profile-stat-val" id="heroCals">—</div><div class="profile-stat-lbl" data-nl="Dagdoel kcal" data-en="Daily goal kcal">Dagdoel kcal</div></div>
+        <div class="profile-stat" onclick="editDailyGoal()" style="cursor:pointer" title="Aanpassen"><div class="profile-stat-val" id="heroCals">—</div><div class="profile-stat-lbl" data-nl="Dagdoel kcal ✏️" data-en="Daily goal kcal ✏️">Dagdoel kcal ✏️</div></div>
       </div>
     </div>
     <div class="cards-row">
@@ -1185,10 +1185,11 @@ function finishQuest(){
   if(qData.goal==='afvallen')tdee-=500;
   if(qData.goal==='aankomen')tdee+=500;
   const customKcalEl=document.getElementById('customKcal');
-  if(customKcalEl&&customKcalEl.value&&parseInt(customKcalEl.value)>=800){
-    tdee=parseInt(customKcalEl.value);
+  let customGoal=false;
+  if(customKcalEl&&customKcalEl.value&&parseInt(customKcalEl.value)>=800&&parseInt(customKcalEl.value)!==tdee){
+    tdee=parseInt(customKcalEl.value); customGoal=true;
   }
-  S.user={...S.user,age,height,gender,weight,goalWeight,goal:qData.goal,actLevel:qData.actLevel,tdee};
+  S.user={...S.user,age,height,gender,weight,goalWeight,goal:qData.goal,actLevel:qData.actLevel,tdee,customGoal};
   S.weightLog=[{date:todayStr(),weight}];
   saveData();
   showWelcome();
@@ -1206,14 +1207,16 @@ function hideWelcome(){
   document.getElementById('welcomeScreen').classList.remove('show');
   launchApp();
 }
-function spawnConfetti(){
-  const canvas=document.getElementById('confettiCanvas');
+function spawnConfetti(container){
+  const host=container||document.getElementById('welcomeScreen');
+  if(!host) return;
+  if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   const colors=['#22c55e','#16a34a','#ffffff','#fbbf24','#60a5fa','#f472b6','#a78bfa'];
   for(let i=0;i<80;i++){
     const el=document.createElement('div');
     el.className='confetti-piece';
     el.style.cssText=`left:${Math.random()*100}vw;top:-20px;background:${colors[Math.floor(Math.random()*colors.length)]};width:${6+Math.random()*10}px;height:${6+Math.random()*10}px;border-radius:${Math.random()>0.5?'50%':'2px'};animation:confettiFall ${2+Math.random()*3}s ${Math.random()*2}s linear forwards;`;
-    document.getElementById('welcomeScreen').appendChild(el);
+    host.appendChild(el);
     setTimeout(()=>el.remove(),(5000));
   }
 }
@@ -1239,6 +1242,7 @@ function loadUserData(){
   if(d){const p=JSON.parse(d);S.meals=p.meals||S.meals;S.activities=p.activities||[];S.weightLog=p.weightLog||[];S.calLog=p.calLog||{};S.macroLog=p.macroLog||{};S.recentFoods=p.recentFoods||[];S.favorites=p.favorites||[];S.water=p.water||{date:'',count:0,goal:8};S.mealsDate=p.mealsDate||'';}
   ensureWaterToday();
   rolloverDay();
+  pruneActivities();
 }
 async function saveData(){
   if(S.user)localStorage.setItem('bt_user',JSON.stringify(S.user));
@@ -1304,12 +1308,47 @@ function updateProfileUI(){
 function getTodayCals(){return Object.values(S.meals).flat().reduce((s,f)=>s+(f.cal||0),0);}
 function getTodayBurned(){return S.activities.filter(a=>a.date===todayStr()).reduce((s,a)=>s+(a.burned||0),0);}
 
+// Escape free-text (food/product names) before putting it in innerHTML.
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+// Recalculate the daily calorie goal from the CURRENT weight (Mifflin-St Jeor),
+// unless the user set a custom goal themselves.
+function recomputeTDEE(){
+  const u=S.user; if(!u||u.customGoal) return;
+  const w=(S.weightLog&&S.weightLog.length?S.weightLog[S.weightLog.length-1].weight:u.weight);
+  if(!w||!u.height||!u.age) return;
+  let bmr=(u.gender==='m')?10*w+6.25*u.height-5*u.age+5:10*w+6.25*u.height-5*u.age-161;
+  let tdee=Math.round(bmr*(u.actLevel||1.375));
+  if(u.goal==='afvallen') tdee-=500;
+  if(u.goal==='aankomen') tdee+=500;
+  u.tdee=tdee;
+}
+// Let the user tap the daily-goal stat to set a custom value.
+function editDailyGoal(){
+  const u=S.user; if(!u) return;
+  const v=prompt(S.lang==='nl'?'Dagdoel (kcal):':'Daily goal (kcal):', u.tdee||2000);
+  if(v===null) return;
+  const n=parseInt(v,10);
+  if(!(n>=800 && n<=10000)){ showNotif('❌ '+(S.lang==='nl'?'Voer 800–10000 in':'Enter 800–10000')); return; }
+  u.tdee=n; u.customGoal=true;
+  saveData(); updateProfileUI(); updateFoodSummary();
+  showNotif('✅ '+(S.lang==='nl'?'Dagdoel aangepast':'Daily goal updated'));
+}
+// Keep only the last ~60 days of activities so the list/sync don't grow forever.
+function pruneActivities(){
+  if(!Array.isArray(S.activities)) return;
+  const c=new Date(); c.setDate(c.getDate()-60);
+  const cut=c.toISOString().split('T')[0];
+  S.activities=S.activities.filter(a=>!a.date || a.date>=cut);
+}
+
 function logWeight(){
   const val=parseFloat(document.getElementById('newWeightInput').value);
   if(!val||val<20||val>400){showNotif('❌ '+(S.lang==='nl'?'Voer geldig gewicht in':'Enter a valid weight'));return;}
   S.weightLog.push({date:todayStr(),weight:val});S.user.weight=val;
   localStorage.setItem('bt_lastWeight',String(val));
-  saveData();updateProfileUI();renderLogbook();renderStreakBadge();
+  recomputeTDEE();
+  saveData();updateProfileUI();renderLogbook();renderStreakBadge();updateFoodSummary();
   showNotif('✅ '+(S.lang==='nl'?'Gewicht opgeslagen!':'Weight saved!'));
   document.getElementById('newWeightInput').value=val;
 }
@@ -1331,7 +1370,7 @@ const POPULAR_NAMES=['Ei (heel)','Banaan','Boterham volkoren','Havermout (droog)
 function foodRowHTML(f,idx,favSet){
   const isFav=favSet.has(f.n.toLowerCase());
   return `<div class="search-result-item" onclick="selectFood(${idx})">
-      <div><div class="result-name">${tFood(f.n)}</div><div class="result-details">P:${f.p}g · K:${f.k}g · V:${f.v}g | per 100g</div></div>
+      <div><div class="result-name">${esc(tFood(f.n))}</div><div class="result-details">P:${f.p}g · K:${f.k}g · V:${f.v}g | per 100g</div></div>
       <div style="display:flex;align-items:center;gap:8px">
         <div class="result-cal">${f.c} kcal</div>
         <span onclick="event.stopPropagation();toggleFav(${idx})" title="Favoriet" style="cursor:pointer;font-size:18px;line-height:1">${isFav?'⭐':'☆'}</span>
@@ -1603,7 +1642,7 @@ function showStreakCelebration(){
   const msg = S.lang==='nl' ? sc+' dag'+(sc===1?'':'en')+' op rij gelogd! Ga zo door!' : sc+' day'+(sc===1?'':'s')+' logged in a row! Keep it up!';
   document.getElementById('celebrateMsg').textContent = msg;
   const el = document.getElementById('streakCelebrate');
-  if(el){ el.style.display='flex'; setTimeout(()=>el.style.display='none',4000); }
+  if(el){ el.style.display='flex'; spawnConfetti(el); setTimeout(()=>el.style.display='none',4000); }
 }
 // Reset the day's meals when the calendar day changes. The finished day's
 // totals stay in calLog/macroLog (used for the streak & charts), only the
@@ -1656,7 +1695,7 @@ function renderMeals(){
       :items.map(f=>{
         const editing=S.editing&&S.editing.meal===meal&&S.editing.id===f.id;
         if(editing){
-          return `<div class="food-item"><div style="flex:1"><div class="food-item-name">${tFood(f.name)}</div>
+          return `<div class="food-item"><div style="flex:1"><div class="food-item-name">${esc(tFood(f.name))}</div>
             <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
               <input type="number" id="editGrams-${f.id}" value="${f.grams}" min="1" max="5000" style="width:80px;padding:6px;border:2px solid var(--green);border-radius:6px;font-size:13px;outline:none">
               <span style="font-size:12px;color:var(--gray-400)">g</span>
@@ -1666,7 +1705,7 @@ function renderMeals(){
               <button class="food-item-del" onclick="cancelEditFood()">✕</button>
             </div></div>`;
         }
-        return `<div class="food-item"><div><div class="food-item-name">${tFood(f.name)}</div><div style="font-size:12px;color:var(--gray-400)">${f.grams}g · P:${f.protein}g K:${f.carbs}g V:${f.fat}g</div></div><div class="food-item-right"><div class="food-item-cal">${f.cal} kcal</div><button class="food-item-del" title="Aanpassen" onclick="editFood('${meal}',${f.id})">✏️</button><button class="food-item-del" onclick="removeFood('${meal}',${f.id})">✕</button></div></div>`;
+        return `<div class="food-item"><div><div class="food-item-name">${esc(tFood(f.name))}</div><div style="font-size:12px;color:var(--gray-400)">${f.grams}g · P:${f.protein}g K:${f.carbs}g V:${f.fat}g</div></div><div class="food-item-right"><div class="food-item-cal">${f.cal} kcal</div><button class="food-item-del" title="Aanpassen" onclick="editFood('${meal}',${f.id})">✏️</button><button class="food-item-del" onclick="removeFood('${meal}',${f.id})">✕</button></div></div>`;
       }).join('');
   });
   renderWater();
@@ -1705,7 +1744,11 @@ function updateFoodSummary(){
   const goal=S.user?.tdee||2000;
   document.getElementById('ringEaten').textContent=total;
   const pct=Math.min(1,total/goal);
-  document.getElementById('calRingProgress').style.strokeDashoffset=201-(pct*201);
+  const ring=document.getElementById('calRingProgress');
+  const over=total>goal;
+  ring.style.strokeDashoffset=201-(pct*201);
+  ring.style.stroke=over?'#ef4444':'#22c55e';
+  document.getElementById('ringEaten').style.color=over?'#ef4444':'';
   document.getElementById('proteinVal').textContent=protein+'g';
   document.getElementById('carbVal').textContent=carbs+'g';
   document.getElementById('fatVal').textContent=fat+'g';
@@ -1732,8 +1775,8 @@ async function lookupBarcode(code){
       // Display result
       el.innerHTML=`<div style="background:var(--green-xlight);border-radius:10px;padding:16px">
         ${food.img?`<img src="${food.img}" style="width:60px;height:60px;object-fit:contain;float:right;border-radius:8px">`:''}
-        <div style="font-weight:700;font-size:15px">${food.n}</div>
-        ${food.brand?`<div style="font-size:12px;color:var(--gray-400);margin-bottom:8px">${food.brand}</div>`:''}
+        <div style="font-weight:700;font-size:15px">${esc(food.n)}</div>
+        ${food.brand?`<div style="font-size:12px;color:var(--gray-400);margin-bottom:8px">${esc(food.brand)}</div>`:''}
         <div style="font-size:13px;color:var(--gray-600)">🔥 ${food.c} kcal &nbsp;|&nbsp; P: ${food.p}g &nbsp;K: ${food.k}g &nbsp;V: ${food.v}g</div>
         <div style="font-size:11px;color:var(--gray-400);margin-top:4px">per 100g</div>
         <div style="font-size:11px;color:var(--green-dark);font-weight:600;margin-top:10px">${S.lang==='nl'?'💡 1 portie ≈ '+bcPortion+'g (pas aan indien nodig)':'💡 1 serving ≈ '+bcPortion+'g (adjust if needed)'}</div>
@@ -1848,7 +1891,7 @@ async function analyzePhotoFile(file){
     const rows=data.items.map((item,i)=>`
       <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--gray-100)">
         <div>
-          <div style="font-weight:600">${item.name}</div>
+          <div style="font-weight:600">${esc(item.name)}</div>
           <div style="font-size:12px;color:var(--gray-400)">${item.grams}g — P:${Math.round(item.per100g.protein*item.grams/100)}g K:${Math.round(item.per100g.carbs*item.grams/100)}g V:${Math.round(item.per100g.fat*item.grams/100)}g</div>
         </div>
         <div style="font-weight:700;color:var(--green)">${Math.round(item.per100g.calories*item.grams/100)} kcal</div>
@@ -1899,6 +1942,7 @@ function logActivity(){
   const dist=parseFloat(document.getElementById('actDistance').value)||null;
   const burned=Math.round(S.selectedActivity.m*w*(dur/60));
   S.activities.push({id:Date.now(),date:todayStr(),name:S.lang==='nl'?S.selectedActivity.n:S.selectedActivity.e,icon:S.selectedActivity.i,duration:dur,distance:dist,burned});
+  pruneActivities();
   saveData();renderLoggedActivities();updateProfileUI();
   showNotif('✅ Activiteit opgeslagen! -'+burned+' kcal');
 }
@@ -1908,6 +1952,7 @@ function logManualActivity(){
   const burned=parseFloat(document.getElementById('manActCal').value)||0;
   if(!name||!burned){showNotif('❌ Vul naam en calorieën in');return;}
   S.activities.push({id:Date.now(),date:todayStr(),name,icon:'💪',duration:dur,distance:null,burned});
+  pruneActivities();
   saveData();renderLoggedActivities();updateProfileUI();
   showNotif('✅ '+name+' opgeslagen! -'+burned+' kcal');
   ['manActName','manActDuration','manActCal'].forEach(id=>document.getElementById(id).value='');
@@ -2705,6 +2750,7 @@ window.saveActivity       = logActivity;
 window.logManualActivity  = logManualActivity;
 window.filterActivities   = filterActivities;
 window.logWeight          = logWeight;
+window.editDailyGoal      = editDailyGoal;
 window.setCalPeriod       = setCalPeriod;
 window.setWeightPeriod    = setWeightPeriod;
 window.renderLogbook      = renderLogbook;
