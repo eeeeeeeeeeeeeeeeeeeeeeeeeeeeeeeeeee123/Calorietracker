@@ -478,8 +478,9 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
         <button class="lang-btn-app active" onclick="setLangApp('nl',this)">NL</button>
         <button class="lang-btn-app" onclick="setLangApp('en',this)">EN</button>
       </div>
-      <div class="avatar" id="userAvatar" onclick="toggleLogoutMenu()" style="position:relative;cursor:pointer">B
+      <div class="avatar" id="userAvatar" onclick="toggleLogoutMenu(event)" style="position:relative;cursor:pointer">B
         <div class="logout-dropdown" id="logoutDropdown">
+          <div class="logout-item" style="color:var(--gray-800)" onclick="openEditProfile()">⚙️ <span data-nl="Profiel bewerken" data-en="Edit profile">Profiel bewerken</span></div>
           <div class="logout-item" onclick="doLogout()">🚪 <span data-nl="Uitloggen" data-en="Log out">Uitloggen</span></div>
         </div>
       </div>
@@ -727,6 +728,7 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
       </div>
       <div style="display:flex;gap:8px;margin-top:8px">
         <div id="scanStatus" style="flex:1;font-size:13px;color:var(--gray-400);align-self:center">📷 <span data-nl="Camera starten..." data-en="Starting camera...">Camera starten...</span></div>
+        <button class="btn-sm" onclick="flipScanCamera()" title="Camera wisselen">🔄 <span data-nl="Wissel" data-en="Flip">Wissel</span></button>
         <button id="torchBtn" class="btn-sm" style="display:none" onclick="toggleTorch()">🔦 <span data-nl="Licht" data-en="Light">Licht</span></button>
       </div>
     </div>
@@ -770,15 +772,44 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
   </div>
 </div>
 
+<!-- EDIT PROFILE MODAL -->
+<div class="modal-overlay" id="editProfileModal">
+  <div class="modal">
+    <div class="modal-title">⚙️ <span data-nl="Profiel bewerken" data-en="Edit profile">Profiel bewerken</span><button class="modal-close" onclick="closeModal('editProfileModal')">✕</button></div>
+    <label class="form-label" data-nl="LEEFTIJD" data-en="AGE">LEEFTIJD</label>
+    <input type="number" class="num-input" id="epAge" min="10" max="120">
+    <label class="form-label" data-nl="LENGTE (cm)" data-en="HEIGHT (cm)">LENGTE (cm)</label>
+    <input type="number" class="num-input" id="epHeight" min="100" max="250">
+    <label class="form-label" data-nl="GESLACHT" data-en="GENDER">GESLACHT</label>
+    <select class="form-input" id="epGender"><option value="m">Man / Male</option><option value="f">Vrouw / Female</option></select>
+    <label class="form-label" data-nl="DOEL" data-en="GOAL">DOEL</label>
+    <select class="form-input" id="epGoal"><option value="afvallen">Afvallen / Lose</option><option value="behouden">Behouden / Maintain</option><option value="aankomen">Aankomen / Gain</option></select>
+    <label class="form-label" data-nl="DOELGEWICHT (kg)" data-en="TARGET WEIGHT (kg)">DOELGEWICHT (kg)</label>
+    <input type="number" class="num-input" id="epGoalWeight" min="20" max="400" step="0.5">
+    <label class="form-label" data-nl="ACTIVITEITSNIVEAU" data-en="ACTIVITY LEVEL">ACTIVITEITSNIVEAU</label>
+    <select class="form-input" id="epAct">
+      <option value="1.2">Weinig / Low</option>
+      <option value="1.375">Licht actief / Light</option>
+      <option value="1.55">Matig actief / Moderate</option>
+      <option value="1.725">Zeer actief / Very</option>
+      <option value="1.9">Extreem actief / Extreme</option>
+    </select>
+    <button class="btn-primary" style="width:100%;margin-top:14px" onclick="saveEditProfile()" data-nl="Opslaan" data-en="Save">Opslaan</button>
+  </div>
+</div>
+
 <!-- WEBCAM MODAL (desktop photo capture) -->
 <div class="modal-overlay" id="webcamModal">
   <div class="modal">
     <div class="modal-title">📷 <span data-nl="Foto maken" data-en="Take photo">Foto maken</span><button class="modal-close" onclick="closeWebcam()">✕</button></div>
     <video id="webcamVideo" autoplay playsinline muted style="width:100%;border-radius:12px;max-height:320px;background:#000"></video>
     <div id="webcamErr" style="color:var(--red);font-size:13px;margin-top:8px;text-align:center"></div>
-    <button class="btn-primary" style="width:100%;margin-top:12px;padding:14px" onclick="snapWebcam()">
-      📸 <span data-nl="Maak foto" data-en="Capture">Maak foto</span>
-    </button>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn-primary" style="flex:1;padding:14px" onclick="snapWebcam()">
+        📸 <span data-nl="Maak foto" data-en="Capture">Maak foto</span>
+      </button>
+      <button class="btn-sm" style="padding:0 16px" onclick="flipWebcam()" title="Camera wisselen">🔄</button>
+    </div>
   </div>
 </div>
 <!-- Hidden native camera input (mobile photo capture) -->
@@ -792,7 +823,7 @@ const S = {
   lang:'nl', user:null,
   meals:{ontbijt:[],lunch:[],tussendoortje:[],avondeten:[]},
   activities:[], weightLog:[], calLog:{}, macroLog:{},
-  recentFoods:[], favorites:[], water:{date:'',count:0,goal:8}, mealsDate:'',
+  recentFoods:[], favorites:[], water:{date:'',count:0,goal:8}, mealsDate:'', savedPortions:{},
   selectedActivity:null, currentMeal:null, selectedFood:null, selectedPortion:100, editing:null, calPeriod:'week'
 };
 
@@ -1239,14 +1270,14 @@ function launchApp(){
 
 function loadUserData(){
   const d=localStorage.getItem('bt_data');
-  if(d){const p=JSON.parse(d);S.meals=p.meals||S.meals;S.activities=p.activities||[];S.weightLog=p.weightLog||[];S.calLog=p.calLog||{};S.macroLog=p.macroLog||{};S.recentFoods=p.recentFoods||[];S.favorites=p.favorites||[];S.water=p.water||{date:'',count:0,goal:8};S.mealsDate=p.mealsDate||'';}
+  if(d){const p=JSON.parse(d);S.meals=p.meals||S.meals;S.activities=p.activities||[];S.weightLog=p.weightLog||[];S.calLog=p.calLog||{};S.macroLog=p.macroLog||{};S.recentFoods=p.recentFoods||[];S.favorites=p.favorites||[];S.water=p.water||{date:'',count:0,goal:8};S.mealsDate=p.mealsDate||'';S.savedPortions=p.savedPortions||{};}
   ensureWaterToday();
   rolloverDay();
   pruneActivities();
 }
 async function saveData(){
   if(S.user)localStorage.setItem('bt_user',JSON.stringify(S.user));
-  const dataObj={meals:S.meals,activities:S.activities,weightLog:S.weightLog,calLog:S.calLog,macroLog:S.macroLog,recentFoods:S.recentFoods,favorites:S.favorites,water:S.water,mealsDate:S.mealsDate};
+  const dataObj={meals:S.meals,activities:S.activities,weightLog:S.weightLog,calLog:S.calLog,macroLog:S.macroLog,recentFoods:S.recentFoods,favorites:S.favorites,water:S.water,mealsDate:S.mealsDate,savedPortions:S.savedPortions};
   localStorage.setItem('bt_data',JSON.stringify(dataObj));
   // Also save to Firestore if logged in
   const uid=window._fbUser?.uid||S.user?.uid;
@@ -1334,12 +1365,46 @@ function editDailyGoal(){
   saveData(); updateProfileUI(); updateFoodSummary();
   showNotif('✅ '+(S.lang==='nl'?'Dagdoel aangepast':'Daily goal updated'));
 }
+// Edit the full profile (age/height/gender/goal/activity) after onboarding.
+function openEditProfile(){
+  const dd=document.getElementById('logoutDropdown'); if(dd) dd.classList.remove('open');
+  const u=S.user||{};
+  const set=(id,v)=>{const el=document.getElementById(id); if(el&&v!=null&&v!=='') el.value=v;};
+  set('epAge',u.age); set('epHeight',u.height); set('epGender',u.gender||'m');
+  set('epGoal',u.goal||'behouden'); set('epGoalWeight',u.goalWeight); set('epAct',u.actLevel||1.375);
+  document.getElementById('editProfileModal').classList.add('open');
+}
+function saveEditProfile(){
+  const u=S.user; if(!u) return;
+  const age=parseInt(document.getElementById('epAge').value,10);
+  const height=parseInt(document.getElementById('epHeight').value,10);
+  if(!(age>=10&&age<=120)||!(height>=100&&height<=250)){ showNotif('❌ '+(S.lang==='nl'?'Vul geldige gegevens in':'Enter valid details')); return; }
+  u.age=age; u.height=height;
+  u.gender=document.getElementById('epGender').value;
+  u.goal=document.getElementById('epGoal').value;
+  const gw=parseFloat(document.getElementById('epGoalWeight').value); if(gw>0) u.goalWeight=gw;
+  u.actLevel=parseFloat(document.getElementById('epAct').value)||1.375;
+  u.customGoal=false; // recompute the daily goal from the new profile
+  recomputeTDEE();
+  saveData(); updateProfileUI(); updateFoodSummary();
+  closeModal('editProfileModal');
+  showNotif('✅ '+(S.lang==='nl'?'Profiel bijgewerkt':'Profile updated'));
+}
 // Keep only the last ~60 days of activities so the list/sync don't grow forever.
 function pruneActivities(){
   if(!Array.isArray(S.activities)) return;
   const c=new Date(); c.setDate(c.getDate()-60);
   const cut=c.toISOString().split('T')[0];
   S.activities=S.activities.filter(a=>!a.date || a.date>=cut);
+}
+// Remember the gram amount the user chose per product (their own mini-database).
+function rememberPortion(name,grams){
+  if(!name||!(grams>0)) return;
+  S.savedPortions=S.savedPortions||{};
+  S.savedPortions[name.toLowerCase()]=Math.round(grams);
+}
+function getSavedPortion(name){
+  return (name&&S.savedPortions)?S.savedPortions[name.toLowerCase()]:null;
 }
 
 function logWeight(){
@@ -1555,8 +1620,12 @@ function selectFood(i){
   const hintEl = document.getElementById('portionHint');
   const stdPortions = {'Ei (heel)':60,'Banaan':120,'Appel':150,'Brood':35,'Rijst (gekookt)':180,'Pasta (gekookt)':200,'Kipfilet (gegrild)':150,'Melk':200,'Yoghurt naturel':150,'Griekse yoghurt 0%':150,'Kwark (mager)':150,'Skyr':150,'Pindakaas':15,'Havermout (droog)':50,'Chips naturel':25,'Chocolade':30};
   const guess = food ? guessServing(food.n) : null;
+  const saved = food ? getSavedPortion(food.n) : null;
   let portion = null, hint = '';
-  if(food && stdPortions[food.n]){
+  if(saved){
+    portion = saved;
+    hint = S.lang==='nl' ? '💡 Jouw portie ≈ '+portion+'g (pas aan indien nodig)' : '💡 Your portion ≈ '+portion+'g (adjust if needed)';
+  } else if(food && stdPortions[food.n]){
     portion = stdPortions[food.n];
     hint = S.lang==='nl' ? '💡 1 portie ≈ '+portion+'g (pas aan indien nodig)' : '💡 1 serving ≈ '+portion+'g (adjust if needed)';
   } else if(guess){
@@ -1604,6 +1673,7 @@ function addFoodToMeal(){
   const g=parseFloat(document.getElementById('portionGrams').value)||100;
   const r=g/100;
   recordRecent(food);
+  rememberPortion(food.n,g);
   pushFoodItem({name:food.n,grams:g,cal:Math.round(food.c*r),protein:Math.round(food.p*r),carbs:Math.round(food.k*r),fat:Math.round(food.v*r)});
 }
 
@@ -1729,6 +1799,7 @@ function saveEditFood(meal,id){
       item.carbs=Math.round(item.carbs*ratio);
       item.fat=Math.round(item.fat*ratio);
       item.grams=ng;
+      rememberPortion(item.name,ng);
     }
   }
   S.editing=null;
@@ -1771,7 +1842,7 @@ async function lookupBarcode(code){
       const food=d.food;
       window._bcFood=food;            // keep the product; avoids fragile onclick serialization
       const dm=defaultMeal();
-      const bcPortion=guessServing(food.n)||100;   // estimate "1 portion" instead of always 100g
+      const bcPortion=getSavedPortion(food.n)||guessServing(food.n)||100;   // your saved portion, else estimate, else 100g
       // Display result
       el.innerHTML=`<div style="background:var(--green-xlight);border-radius:10px;padding:16px">
         ${food.img?`<img src="${food.img}" style="width:60px;height:60px;object-fit:contain;float:right;border-radius:8px">`:''}
@@ -1837,6 +1908,7 @@ function addBarcodeFood(){
   const meal=document.getElementById('bcMeal')?.value||defaultMeal();
   const r=g/100;
   recordRecent(food);
+  rememberPortion(food.n,g);
   if(!S.meals[meal]) S.meals[meal]=[];
   S.meals[meal].push({
     id:Date.now(),
@@ -1961,7 +2033,11 @@ function renderLoggedActivities(){
   const today=S.activities.filter(a=>a.date===todayStr());
   document.getElementById('loggedActivitiesList').innerHTML=today.length===0
     ?'<div class="empty-state"><div class="empty-icon">🏃</div>Nog geen activiteiten</div>'
-    :today.map(a=>`<div class="log-item"><div class="log-item-left"><div class="log-item-icon">${a.icon}</div><div><div class="log-item-name">${a.name}</div><div class="log-item-detail">${a.duration} min${a.distance?' · '+a.distance+' km':''}</div></div></div><div class="log-item-cal">-${a.burned} kcal</div></div>`).join('');
+    :today.map(a=>`<div class="log-item"><div class="log-item-left"><div class="log-item-icon">${a.icon}</div><div><div class="log-item-name">${esc(a.name)}</div><div class="log-item-detail">${a.duration} min${a.distance?' · '+a.distance+' km':''}</div></div></div><div style="display:flex;align-items:center;gap:10px"><div class="log-item-cal">-${a.burned} kcal</div><button class="food-item-del" onclick="removeActivity(${a.id})">✕</button></div></div>`).join('');
+}
+function removeActivity(id){
+  S.activities=S.activities.filter(a=>a.id!==id);
+  saveData();renderLoggedActivities();updateProfileUI();
 }
 
 // ===== LOGBOOK =====
@@ -2445,12 +2521,18 @@ function selectGender(el, val){
   if(typeof qData !== 'undefined') qData.gender = val;
 }
 
-function toggleLogoutMenu(){
-  // Bulletproof across devices: a native confirm can't be clipped, hidden, or
-  // mis-tapped like a CSS dropdown. Clicking the avatar = "option to log out".
-  const ok = window.confirm(S.lang==='en' ? 'Do you want to log out?' : 'Wil je uitloggen?');
-  if(ok) doLogout();
+function toggleLogoutMenu(e){
+  if(e&&e.stopPropagation) e.stopPropagation();
+  const dd=document.getElementById('logoutDropdown');
+  if(dd) dd.classList.toggle('open');
 }
+// Close the avatar menu when clicking anywhere outside it.
+document.addEventListener('click',function(e){
+  const dd=document.getElementById('logoutDropdown');
+  if(dd && dd.classList.contains('open') && !e.target.closest('#userAvatar')){
+    dd.classList.remove('open');
+  }
+});
 
 async function doLogout(){
   document.getElementById('logoutDropdown')?.classList.remove('open');
@@ -2501,18 +2583,23 @@ function onGenericCapture(input){
 }
 
 // --- Desktop webcam preview ---
-var _webcamStream = null;
+var _webcamStream = null, _webcamFacing = 'environment';
+function flipWebcam(){
+  _webcamFacing = (_webcamFacing==='environment') ? 'user' : 'environment';
+  openWebcam();
+}
 function openWebcam(){
   var modal = document.getElementById('webcamModal');
   var video = document.getElementById('webcamVideo');
   var err   = document.getElementById('webcamErr');
   if(err) err.textContent = '';
   if(modal) modal.classList.add('open');
+  if(_webcamStream){ _webcamStream.getTracks().forEach(function(t){ t.stop(); }); _webcamStream=null; }
   if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
     if(err) err.textContent = (S.lang==='nl'?'Geen camera beschikbaar in deze browser.':'No camera available in this browser.');
     return;
   }
-  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } } })
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: _webcamFacing, width: { ideal: 1920 }, height: { ideal: 1080 } } })
     .then(function(stream){ _webcamStream = stream; if(video){ video.srcObject = stream; video.play(); } applyFocus(_webcamStream); })
     .catch(function(e){ if(err) err.textContent = (S.lang==='nl'?'Kan camera niet openen: ':'Cannot open camera: ') + (e.message||e.name); });
 }
@@ -2542,7 +2629,12 @@ function closeWebcam(){
 // the camera on and tries many frames/sec, using the browser's native
 // BarcodeDetector when available (fast + accurate) and falling back to ZXing.
 var BC_FORMATS = ['ean_13','ean_8','upc_a','upc_e','code_128','code_39','itf','codabar'];
-var _scanStream = null, _scanLoop = null, _scanReader = null, _scanning = false, _torchOn = false;
+var _scanStream = null, _scanLoop = null, _scanReader = null, _scanning = false, _torchOn = false, _scanFacing = 'environment';
+function flipScanCamera(){
+  _scanFacing = (_scanFacing==='environment') ? 'user' : 'environment';
+  stopLiveScan();
+  startLiveScan();
+}
 
 function setScanStatus(txt){ var s=document.getElementById('scanStatus'); if(s) s.textContent=txt; }
 
@@ -2564,7 +2656,7 @@ async function startLiveScan(){
   }
   try{
     _scanStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }
+      video: { facingMode: _scanFacing, width: { ideal: 1920 }, height: { ideal: 1080 } }
     });
   }catch(e){
     setScanStatus((S.lang==='nl'?'Kan camera niet openen: ':'Cannot open camera: ')+(e.message||e.name));
@@ -2751,6 +2843,11 @@ window.logManualActivity  = logManualActivity;
 window.filterActivities   = filterActivities;
 window.logWeight          = logWeight;
 window.editDailyGoal      = editDailyGoal;
+window.openEditProfile    = openEditProfile;
+window.saveEditProfile    = saveEditProfile;
+window.removeActivity     = removeActivity;
+window.flipScanCamera     = flipScanCamera;
+window.flipWebcam         = flipWebcam;
 window.setCalPeriod       = setCalPeriod;
 window.setWeightPeriod    = setWeightPeriod;
 window.renderLogbook      = renderLogbook;
