@@ -7,6 +7,7 @@
 <!-- PWA: installable + offline -->
 <link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#22c55e">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="BaranTrack">
@@ -59,6 +60,8 @@ onAuthStateChanged(fbAuth, async (user) => {
 </script>
 <!-- ZXing barcode scanner (self-hosted to avoid CDN tracking-prevention blocks) -->
 <script src="/vendor/zxing.min.js"></script>
+<!-- Fuse.js: offline fuzzy search (typo-tolerant, weighted, ranked) -->
+<script src="/vendor/fuse.min.js"></script>
 <style>
 :root{--green:#22c55e;--green-dark:#16a34a;--green-light:#86efac;--green-xlight:#dcfce7;--gray-50:#f9fafb;--gray-100:#f3f4f6;--gray-200:#e5e7eb;--gray-400:#9ca3af;--gray-600:#4b5563;--gray-800:#1f2937;--blue:#3b82f6;--orange:#f97316;--red:#ef4444;--purple:#a855f7;--radius:12px;--shadow:0 4px 24px rgba(0,0,0,0.08);--shadow-lg:0 8px 40px rgba(0,0,0,0.12);}
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -435,11 +438,11 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
       <div class="quest-title" data-nl="Jouw gegevens 📏" data-en="Your details 📏">Jouw gegevens 📏</div>
       <div class="quest-sub" data-nl="Voor een nauwkeurige berekening" data-en="For an accurate calculation">Voor een nauwkeurige berekening</div>
       <label class="form-label" data-nl="LEEFTIJD" data-en="AGE">LEEFTIJD</label>
-      <input type="number" class="num-input" id="qAge" value="25" min="10" max="120">
+      <input type="number" class="num-input" id="qAge" value="25" min="10" max="120" aria-label="Leeftijd / Age">
       <label class="form-label" data-nl="LENGTE (cm)" data-en="HEIGHT (cm)">LENGTE (cm)</label>
-      <input type="number" class="num-input" id="qHeight" value="175" min="100" max="250">
+      <input type="number" class="num-input" id="qHeight" value="175" min="100" max="250" aria-label="Lengte / Height (cm)">
       <label class="form-label" data-nl="GESLACHT" data-en="GENDER">GESLACHT</label>
-      <select class="form-input" id="qGender">
+      <select class="form-input" id="qGender" aria-label="Geslacht / Gender">
         <option value="m">Man / Male</option>
         <option value="f">Vrouw / Female</option>
       </select>
@@ -449,9 +452,9 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
       <div class="quest-title" data-nl="Gewicht 🏋️" data-en="Weight 🏋️">Gewicht 🏋️</div>
       <div class="quest-sub" data-nl="Je huidige en doelgewicht" data-en="Your current and target weight">Je huidige en doelgewicht</div>
       <label class="form-label" data-nl="HUIDIG GEWICHT (kg)" data-en="CURRENT WEIGHT (kg)">HUIDIG GEWICHT (kg)</label>
-      <input type="number" class="num-input" id="qWeight" value="75" min="20" max="400" step="0.5">
+      <input type="number" class="num-input" id="qWeight" value="75" min="20" max="400" step="0.5" aria-label="Huidig gewicht / Current weight (kg)">
       <label class="form-label" data-nl="DOELGEWICHT (kg)" data-en="TARGET WEIGHT (kg)">DOELGEWICHT (kg)</label>
-      <input type="number" class="num-input" id="qGoalWeight" value="70" min="20" max="400" step="0.5">
+      <input type="number" class="num-input" id="qGoalWeight" value="70" min="20" max="400" step="0.5" aria-label="Doelgewicht / Target weight (kg)">
       <button class="btn-primary" onclick="nextStep(2)" data-nl="Volgende →" data-en="Next →">Volgende →</button>
     </div>
     <div class="quest-step" id="step3">
@@ -498,6 +501,7 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
   <!-- PROFILE PAGE -->
   <div class="page active" id="profilePage">
     <div class="profile-hero">
+      <button onclick="openEditProfile()" title="Profiel bewerken" style="position:absolute;top:16px;right:16px;background:rgba(255,255,255,0.2);border:none;color:white;padding:8px 14px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;z-index:2">⚙️ <span data-nl="Profiel" data-en="Profile">Profiel</span></button>
       <div class="profile-name" id="heroName">Hey, Baran! 👋</div>
       <div class="profile-goal-badge" id="heroGoal">🎯 Doel: Afvallen</div>
       <div id="streakBadge" style="display:inline-block;margin-left:10px"></div>
@@ -514,7 +518,7 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
         <div class="weight-labels"><span id="startWeightLbl">—</span><span id="goalWeightLbl">—</span></div>
         <div class="weight-bar-bg"><div class="weight-bar-fill" id="weightProgressBar" style="width:0%"></div></div>
         <div class="weight-input-row" style="margin-top:12px">
-  <input type="number" class="num-input" id="newWeightInput" value="75" min="20" max="400" step="0.5" style="margin-bottom:0;flex:1">
+  <input type="number" class="num-input" id="newWeightInput" value="75" min="20" max="400" step="0.5" style="margin-bottom:0;flex:1" aria-label="Nieuw gewicht / New weight (kg)">
   <button class="btn-sm" onclick="logWeight()" data-nl="Opslaan" data-en="Save">Opslaan</button>
 </div>
         <div id="weightHistory" style="margin-top:14px"></div>
@@ -695,7 +699,7 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
     <div id="portionSelect" class="portion-select"><div id="portionHint" style="font-size:12px;color:var(--green-dark);font-weight:600;margin-bottom:8px;text-align:center"></div>
       <div class="portion-row">
         <div class="portion-label" id="portionFoodName">—</div>
-        <input type="number" id="portionGrams" value="100" min="1" max="2000" oninput="updatePortionPreview()">
+        <input type="number" id="portionGrams" value="100" min="1" max="2000" oninput="updatePortionPreview()" aria-label="Gram">
         <span style="font-size:13px;font-weight:600;color:var(--gray-600)">g</span>
         <div class="portion-cal-preview" id="portionCalPreview">— kcal</div>
       </div>
@@ -772,7 +776,7 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
         <a href="#" onclick="document.getElementById('photoFileInput').click();return false" style="font-size:13px;color:var(--gray-400);text-decoration:underline">
           <span data-nl="Of kies bestand" data-en="Or choose file">Of kies bestand</span>
         </a>
-        <input type="file" id="photoFileInput" accept="image/*" style="display:none" onchange="analyzePhoto(this)">
+        <input type="file" id="photoFileInput" accept="image/*" style="display:none" onchange="analyzePhoto(this)" aria-label="Kies foto / Choose photo">
       </div>
     </div>
     <div class="ai-analyzing" id="aiAnalyzing"><div class="spinner" style="display:block;margin:0 auto 8px"></div><p data-nl="AI analyseert..." data-en="AI is analyzing...">AI analyseert...</p></div>
@@ -785,17 +789,17 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
   <div class="modal">
     <div class="modal-title">⚙️ <span data-nl="Profiel bewerken" data-en="Edit profile">Profiel bewerken</span><button class="modal-close" onclick="closeModal('editProfileModal')">✕</button></div>
     <label class="form-label" data-nl="LEEFTIJD" data-en="AGE">LEEFTIJD</label>
-    <input type="number" class="num-input" id="epAge" min="10" max="120">
+    <input type="number" class="num-input" id="epAge" min="10" max="120" aria-label="Leeftijd / Age">
     <label class="form-label" data-nl="LENGTE (cm)" data-en="HEIGHT (cm)">LENGTE (cm)</label>
-    <input type="number" class="num-input" id="epHeight" min="100" max="250">
+    <input type="number" class="num-input" id="epHeight" min="100" max="250" aria-label="Lengte / Height (cm)">
     <label class="form-label" data-nl="GESLACHT" data-en="GENDER">GESLACHT</label>
-    <select class="form-input" id="epGender"><option value="m">Man / Male</option><option value="f">Vrouw / Female</option></select>
+    <select class="form-input" id="epGender" aria-label="Geslacht / Gender"><option value="m">Man / Male</option><option value="f">Vrouw / Female</option></select>
     <label class="form-label" data-nl="DOEL" data-en="GOAL">DOEL</label>
-    <select class="form-input" id="epGoal"><option value="afvallen">Afvallen / Lose</option><option value="behouden">Behouden / Maintain</option><option value="aankomen">Aankomen / Gain</option></select>
+    <select class="form-input" id="epGoal" aria-label="Doel / Goal"><option value="afvallen">Afvallen / Lose</option><option value="behouden">Behouden / Maintain</option><option value="aankomen">Aankomen / Gain</option></select>
     <label class="form-label" data-nl="DOELGEWICHT (kg)" data-en="TARGET WEIGHT (kg)">DOELGEWICHT (kg)</label>
-    <input type="number" class="num-input" id="epGoalWeight" min="20" max="400" step="0.5">
+    <input type="number" class="num-input" id="epGoalWeight" min="20" max="400" step="0.5" aria-label="Doelgewicht / Target weight (kg)">
     <label class="form-label" data-nl="ACTIVITEITSNIVEAU" data-en="ACTIVITY LEVEL">ACTIVITEITSNIVEAU</label>
-    <select class="form-input" id="epAct">
+    <select class="form-input" id="epAct" aria-label="Activiteitsniveau / Activity level">
       <option value="1.2">Weinig / Low</option>
       <option value="1.375">Licht actief / Light</option>
       <option value="1.55">Matig actief / Moderate</option>
@@ -803,6 +807,7 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
       <option value="1.9">Extreem actief / Extreme</option>
     </select>
     <button class="btn-primary" style="width:100%;margin-top:14px" onclick="saveEditProfile()" data-nl="Opslaan" data-en="Save">Opslaan</button>
+    <button class="btn-sm" style="width:100%;margin-top:10px;background:var(--red);color:#fff;border:none" onclick="doLogout()">🚪 <span data-nl="Uitloggen" data-en="Log out">Uitloggen</span></button>
   </div>
 </div>
 
@@ -821,7 +826,7 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
   </div>
 </div>
 <!-- Hidden native camera input (mobile photo capture) -->
-<input type="file" id="genericCaptureInput" accept="image/*" capture="environment" style="display:none" onchange="onGenericCapture(this)">
+<input type="file" id="genericCaptureInput" accept="image/*" capture="environment" style="display:none" onchange="onGenericCapture(this)" aria-label="Maak foto / Take photo">
 
 <div class="notif" id="notif">✅ <span id="notifText"></span></div>
 
@@ -1534,7 +1539,10 @@ function foodRelevance(name, ql, tokens){
     // whole-word match (e.g. "oetker" in "(Dr. Oetker)") counts extra
     const wholeWord=(idx===0||/[^a-z0-9]/.test(n[idx-1])) &&
                     (idx+t.length>=n.length||/[^a-z0-9]/.test(n[idx+t.length]));
-    s+=wholeWord?50:20;
+    // Weight by word length: a specific word ("kippenvleugels") must outrank
+    // short/brand words ("heijn"), so brand-only matches don't win.
+    const w=Math.min(t.length,14);
+    s+=(wholeWord?9:4)*w;
     if(idx<15) s+=10;                  // match near the start
   }
   if(tokens.length && matched===tokens.length) s+=200; // all words present
@@ -1542,36 +1550,132 @@ function foodRelevance(name, ql, tokens){
   return s;
 }
 
+// Common function words to ignore in search so e.g. "salade met rijst" doesn't
+// match the brand "Met-Rx" on the word "met".
+const STOPWORDS=new Set(['met','de','het','een','en','van','voor','op','in','of','te','om','aan','bij','uit','door','the','with','and','a','an','of','for','in','on','or','to','at','by']);
+// ===== SMART SEARCH (Fuse.js: fuzzy/typo-tolerant, brand+category aware) =====
+function normalize(s){
+  return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
+}
+// Rough category for each food (so "fruit"/"vlees"/"drinken" find whole groups).
+// NL+EN keywords in the returned string so search works in both languages.
+function foodCategory(name){
+  const n=normalize(name);
+  const rules=[
+    [/pizza|pasta|spaghetti|lasagne|friet|patat|hamburger|\bburger|kapsalon|shoarma|shawarma|kebab|doner|nasi|bami|loempia|sushi|tosti|hotdog|nacho|taco|burrito|wrap/,'fastfood fast food'],
+    [/boterham|stokbrood|baguette|croissant|bagel|cracker|beschuit|\bbrood|broodje|pita|naan|krentenbol/,'brood bread'],
+    [/rijst|couscous|quinoa|bulgur|noedel|havermout|muesli|cornflakes|granola|cruesli|ontbijtkoek/,'granen ontbijt grains cereal'],
+    [/\bkip|kalkoen|rund|varken|gehakt|biefstuk|\bspek|\bham\b|worst|salami|chorizo|pepperoni|\blam|bacon|frikandel|kroket|schnitzel|sate|kofte|kebab/,'vlees meat'],
+    [/zalm|tonijn|\bvis\b|haring|kabeljauw|makreel|garnaal|mossel|sardine|paling|scampi|inktvis|visstick|kibbeling/,'vis fish'],
+    [/melk|yoghurt|yogurt|kwark|skyr|\bkaas|\broom|\bboter|\bvla\b|karnemelk|feta|mozzarella|brie/,'zuivel dairy'],
+    [/\bei\b|eieren|omelet|roerei/,'eieren eggs'],
+    [/(?<!aard)appel|banaan|peer|sinaasappel|mandarijn|druif|aardbei|framboos|\bbes|kiwi|mango|ananas|meloen|perzik|pruim|abrikoos|nectarine|vijg|dadel|rozijn|kers|papaya/,'fruit'],
+    [/\bsla\b|aardappel|tomaat|komkommer|paprika|wortel|\bui\b|broccoli|spinazie|courgette|aubergine|bloemkool|spruit|sperzie|\bprei|champignon|groente|salade|witlof|rucola|asperge|pompoen|\bbiet|selderij|radijs/,'groente groenten vegetable'],
+    [/\bnoot|noten|amandel|walnoot|cashew|pinda|hazelnoot|pistache|pompoenpit|zonnebloempit|chiazaad|lijnzaad|sesam/,'noten zaden nuts'],
+    [/\blinze|bonen|kikkererwt|\btofu|tempeh|edamame|kapucijner/,'peulvrucht legumes'],
+    [/chips|chocola|snoep|\bdrop\b|\bkoek|biscuit|speculaas|stroopwafel|\breep|snickers|\bmars\b|twix|kitkat|haribo|winegum|popcorn|\bijs|gebak|taart|muffin|donut|oliebol|tompouce/,'snacks snoep sweets'],
+    [/pindakaas|hagelslag|\bjam\b|nutella|honing|appelstroop|smeerkaas|leverpastei/,'broodbeleg spread'],
+    [/mayonaise|ketchup|mosterd|\bsaus|sambal|sriracha|pesto|hummus|guacamole|tzatziki|dressing|\bolie/,'saus sauce'],
+    [/\bsoep/,'soep soup'],
+    [/whey|caseine|proteine|eiwit|proteineshake/,'sport proteine protein'],
+    [/water|cola|\bfris|frisdrank|\bsap\b|limonade|\bthee|koffie|smoothie|\bshake|\bbier|\bwijn|drank|ranja|ayran|energy|milkshake|dubbelfris/,'dranken drinks'],
+    [/lasagne|stamppot|hutspot|\bcurry|\bchili|risotto|maaltijd|bolognese|uitsmijter|pannenkoek|poffertje/,'maaltijd meal']
+  ];
+  for(const [re,c] of rules){ if(re.test(n)) return c; }
+  return '';
+}
+// Popular everyday foods get a small ranking boost (like MFP "most logged").
+const POPULAR_SET=new Set(['banaan','appel','ei (heel)','witbrood','volkoren brood','boterham wit','boterham volkoren','halfvolle melk','volle melk','magere melk','kipfilet (gegrild)','rijst (gekookt)','pasta (gekookt)','havermout (droog)','griekse yoghurt 0%','skyr','kwark (mager)','pindakaas','sinaasappel','gouda kaas','aardappel','yoghurt naturel']);
+function popBoost(name){ return POPULAR_SET.has(String(name||'').toLowerCase())?0.18:0; }
+// Common aliases so e.g. "cola" also finds frisdrank.
+const ALIASES={cola:['frisdrank'],fris:['frisdrank'],frisdrank:['cola'],patat:['friet'],friet:['patat'],ei:['eieren'],egg:['ei'],eieren:['ei'],mac:['mcdonalds','hamburger'],brood:['boterham'],boterham:['brood'],drinken:['dranken'],drank:['dranken'],kip:['kipfilet'],aardappel:['patat'],groente:['groenten'],snoep:['snacks']};
+
+let _fuse=null;
+function buildFuse(){
+  if(_fuse) return _fuse;
+  const idx=FOODS.map(f=>{const nm=normalize(f.n); return { ref:f, norm:nm, nospace:nm.replace(/ /g,''), cat:foodCategory(f.n) };});
+  _fuse=new Fuse(idx,{ keys:[{name:'norm',weight:0.7},{name:'nospace',weight:0.3},{name:'cat',weight:0.25}], threshold:0.34, ignoreLocation:true, minMatchCharLength:2, includeScore:true });
+  return _fuse;
+}
+function localSearch(query){
+  const nq=normalize(query);
+  if(!nq) return [];
+  let toks=nq.split(' ').filter(t=>t.length>1&&!STOPWORDS.has(t));
+  if(!toks.length) toks=nq.split(' ').filter(Boolean);
+  // Expand with aliases (cola->frisdrank etc.)
+  const terms=new Set(toks);
+  toks.forEach(t=>{ (ALIASES[t]||[]).forEach(a=>terms.add(normalize(a))); });
+  // PRIMARY: plain substring match on name, no-space name, or category.
+  // This keeps the full result set (no artificial cap) and no weird matches.
+  const hits=FOODS.filter(f=>{
+    const n=normalize(f.n), ns=n.replace(/ /g,''), cat=foodCategory(f.n);
+    return toks.every(t=>n.includes(t)||ns.includes(t)) ||
+           [...terms].some(t=>cat.includes(t));
+  });
+  const ql=nq;
+  hits.sort((a,b)=>(foodRelevance(b.n,ql,toks)+popBoost(b.n)*100)-(foodRelevance(a.n,ql,toks)+popBoost(a.n)*100));
+  if(hits.length>=3 || typeof Fuse==='undefined') return hits;
+  // FALLBACK (typos only): too few substring hits -> add close fuzzy matches.
+  const fuse=buildFuse();
+  const seen=new Set(hits.map(h=>h.n));
+  const extra=[];
+  for(const r of fuse.search(nq,{limit:12})){
+    if(r.score!=null && r.score>0.28) continue;   // strict: real typos only
+    const f=r.item.ref;
+    if(!seen.has(f.n)){ seen.add(f.n); extra.push(f); }
+  }
+  return [...hits,...extra];
+}
+// Render one or more titled sections; keeps window._searchResults index aligned.
+function renderSections(sections){
+  const favSet=new Set((S.favorites||[]).map(f=>f.n.toLowerCase()));
+  const el=document.getElementById('foodSearchResults');
+  const hdr=t=>'<div style="font-size:11px;font-weight:700;color:var(--gray-400);padding:6px 12px 4px;letter-spacing:.5px">'+t+'</div>';
+  let html='',idx=0; const flat=[];
+  for(const sec of sections){
+    if(!sec.items||!sec.items.length) continue;
+    html+=hdr(sec.title);
+    for(const f of sec.items){ html+=foodRowHTML(f,idx,favSet); flat.push(f); idx++; }
+  }
+  window._searchResults=flat;
+  el.innerHTML = flat.length ? html : '<div class="empty-state"><div class="empty-icon">🔍</div>'+(S.lang==='nl'?'Geen resultaten gevonden':'No results found')+'</div>';
+}
+
 function searchFood(q){
   clearTimeout(searchT);
   if(q.length<1){renderStartView();return;}
   searchT=setTimeout(async()=>{
     const ql=q.toLowerCase().trim();
-    const tokens=ql.split(/[^a-z0-9]+/).filter(Boolean);
-    const score=(name)=>foodRelevance(name,ql,tokens);
-    // Local search first (instant) — every typed word must appear, ranked by relevance
-    const local=FOODS
-      .filter(f=>{const n=f.n.toLowerCase(); return tokens.every(t=>n.includes(t));})
-      .sort((a,b)=>score(b.n)-score(a.n))
-      .slice(0,15);
+    let tokens=normalize(q).split(' ').filter(Boolean);
+    const meaningful=tokens.filter(t=>t.length>1 && !STOPWORDS.has(t));
+    if(meaningful.length) tokens=meaningful;
+    const baseName=(n)=>String(n||'').replace(/\s*\([^)]*\)\s*$/,'');
+
+    // Local results instantly (typo-tolerant, full list), then merge OFF below.
+    const local=localSearch(q);
     window._searchResults=local;
     renderFoodResults(local);
-    // Netlify Function proxy (fixes CORS)
     const loadingEl=document.createElement('div');
     loadingEl.id='offLoading';
     loadingEl.style='padding:8px 16px;font-size:12px;color:var(--gray-400);font-style:italic';
     loadingEl.textContent=S.lang==='nl'?'🔍 Open Food Facts zoeken...':'🔍 Searching Open Food Facts...';
     document.getElementById('foodSearchResults').appendChild(loadingEl);
+
     try{
-      const resp=await fetch(`/.netlify/functions/food-search?q=${encodeURIComponent(q)}`);
+      const resp=await fetch(`/.netlify/functions/food-search?q=${encodeURIComponent(q)}&lang=${S.lang||'nl'}`);
       const data=await resp.json();
-      const api=(data.products||[]);
-      const combined=[...local,...api.filter(a=>!local.find(l=>l.n.toLowerCase()===a.n.toLowerCase()))]
-        .sort((a,b)=>score(b.n)-score(a.n));
+      let api=(data.products||[]);
+      // Prefer results that actually contain a search word, but NEVER drop everything.
+      const strong=api.filter(a=>{const n=normalize(baseName(a.n)); return tokens.some(t=>n.includes(t));});
+      api=(strong.length?strong:api);
+      const localNames=new Set(local.map(l=>l.n.toLowerCase()));
+      const combined=[...local,...api.filter(a=>!localNames.has(a.n.toLowerCase()))
+        .sort((a,b)=>foodRelevance(baseName(b.n),ql,tokens)-foodRelevance(baseName(a.n),ql,tokens))];
       window._searchResults=combined;
       renderFoodResults(combined);
     }catch(e){document.getElementById('offLoading')?.remove();}
-  },350);
+  },300);
 }
 
 function renderFoodResults(items,isPopular=false){
@@ -1587,6 +1691,11 @@ function renderFoodResults(items,isPopular=false){
 function guessServing(name){
   const n=(name||'').toLowerCase();
   const rules=[
+    // --- fastfood / restaurant (hele-item gewichten, zodat je 1 stuk ziet) ---
+    [/big tasty/,350],[/big mac/,215],[/quarter pounder|mcroyale|royale/,200],[/whopper jr/,160],[/\bwhopper\b/,270],
+    [/mcchicken|chicken sandwich|filet-?o-?fish|filet o fish/,150],[/big breakfast|groot ontbijt/,250],
+    [/cheeseburger|hamburger|mcdouble/,150],[/mcnugget|nugget|kipnugget/,100],[/mcflurry|milkshake/,250],
+    [/twister|zinger|chicken wrap/,220],[/hot wings|kippenvleugel|chicken wing/,90],
     // --- brood & bakkerij (specifiek eerst) ---
     [/pizzapunt|pizza punt/,125],[/\bpizza\b/,350],
     [/saucijzenbroodje|worstenbroodje|kaasbroodje/,90],
@@ -1648,14 +1757,15 @@ function selectFood(i){
   if(hintEl) hintEl.textContent = hint;
   document.getElementById('portionGrams').value = portion || 100;
   S.selectedPortion = portion || 100;
-  // Refine the portion in the background with Nutritionix's real serving weight.
-  // If it answers (and the user hasn't picked another item), update the field.
-  if(food){
+  // Refine with USDA's serving weight ONLY when we had no local estimate at all.
+  // (USDA can match odd branded items — e.g. "banana" -> 32g chips — so it must
+  // never override a sensible saved/standard/guessed portion.)
+  if(food && !portion){
     const reqName = food.n;
     fetch('/.netlify/functions/serving-lookup?q='+encodeURIComponent(reqName))
       .then(r=>r.json())
       .then(d=>{
-        if(d && d.grams && S.selectedFood && S.selectedFood.n===reqName){
+        if(d && d.grams && d.grams>=10 && d.grams<=1500 && S.selectedFood && S.selectedFood.n===reqName){
           document.getElementById('portionGrams').value = d.grams;
           S.selectedPortion = d.grams;
           if(hintEl) hintEl.textContent = (S.lang==='nl'?'💡 1 portie ≈ '+d.grams+'g (pas aan indien nodig)':'💡 1 serving ≈ '+d.grams+'g (adjust if needed)');
@@ -2168,6 +2278,12 @@ function setLang(lang,btn){S.lang=lang;document.querySelectorAll('.lang-btn').fo
 function setLangApp(lang,btn){S.lang=lang;document.querySelectorAll('.lang-btn-app').forEach(b=>b.classList.remove('active'));if(btn)btn.classList.add('active');applyLang();renderActivities(document.getElementById('activitySearchInput')?.value||'');
   // Re-render dynamic (JS-built) content so it switches language too.
   try{ renderMeals(); renderWater(); renderWeightHistory(); renderLoggedActivities(); updateFoodSummary(); updateProfileUI(); }catch(e){}
+  // If the food search is open with a query, re-run it so OFF results re-translate.
+  try{
+    const fsm=document.getElementById('foodSearchModal');
+    const fi=document.getElementById('foodSearchInput');
+    if(fsm && fsm.classList.contains('open') && fi && fi.value.trim()) searchFood(fi.value);
+  }catch(e){}
 }
 function applyLang(){
   const l=S.lang;
@@ -2877,11 +2993,20 @@ window.updateDashboard    = function(){ renderMeals&&renderMeals(); renderCalBar
     <button class="btn-primary" style="width:100%" onclick="document.getElementById('streakCelebrate').style.display='none'" data-nl="💪 Doorgaan!" data-en="💪 Keep going!">💪 Doorgaan!</button>
   </div>
 </div>
-<!-- PWA service worker -->
+<!-- PWA service worker (disabled on localhost so dev always gets fresh code) -->
 <script>
-if('serviceWorker' in navigator){
-  window.addEventListener('load',function(){ navigator.serviceWorker.register('/sw.js').catch(function(){}); });
-}
+(function(){
+  var isLocal = location.hostname==='localhost' || location.hostname==='127.0.0.1';
+  if(isLocal){
+    // Clean up any stale service worker / caches that could serve old code locally.
+    if('serviceWorker' in navigator){ navigator.serviceWorker.getRegistrations().then(function(rs){ rs.forEach(function(r){ r.unregister(); }); }).catch(function(){}); }
+    if(window.caches){ caches.keys().then(function(ks){ ks.forEach(function(k){ caches.delete(k); }); }).catch(function(){}); }
+    return;
+  }
+  if('serviceWorker' in navigator){
+    window.addEventListener('load',function(){ navigator.serviceWorker.register('/sw.js').catch(function(){}); });
+  }
+})();
 </script>
 </body>
 </html>

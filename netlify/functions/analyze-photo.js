@@ -1,15 +1,18 @@
-// Netlify Function: AI food-photo analysis via Groq (Llama 4 vision).
-// Groq has a usable free tier in the EU (unlike Gemini's free tier = 0 here).
-// Set GROQ_API_KEY in your Netlify environment variables.
+// Netlify Function: AI food-photo analysis via OpenRouter (free vision models).
+// OpenRouter aggregates providers, works in the EU, and has genuinely free
+// vision models. Get a free key at https://openrouter.ai/keys
+// Set OPENROUTER_API_KEY in your Netlify environment variables.
+// Optionally override the model with OPENROUTER_MODEL (a free vision model).
 exports.handler = async function(event) {
   if (event.httpMethod !== 'POST') return { statusCode:405, body:'Method not allowed' };
 
-  const GROQ_KEY = process.env.GROQ_API_KEY;
-  if (!GROQ_KEY) return {
+  const KEY = process.env.OPENROUTER_API_KEY;
+  if (!KEY) return {
     statusCode: 500,
     headers: { 'Access-Control-Allow-Origin': '*' },
-    body: JSON.stringify({ error: 'GROQ_API_KEY not set in Netlify environment variables' })
+    body: JSON.stringify({ error: 'OPENROUTER_API_KEY not set in Netlify environment variables' })
   };
+  const MODEL = process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.2-11b-vision-instruct:free';
 
   let body;
   try { body = JSON.parse(event.body); }
@@ -35,15 +38,17 @@ Respond ONLY with valid JSON in this exact format, no other text:
 If you cannot identify food, return: {"items":[],"total":{"calories":0,"protein":0,"carbs":0,"fat":0}}`;
 
     const resp = await fetch(
-      'https://api.groq.com/openai/v1/chat/completions',
+      'https://openrouter.ai/api/v1/chat/completions',
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${GROQ_KEY}`
+          'Authorization': `Bearer ${KEY}`,
+          'HTTP-Referer': 'https://barantrack.netlify.app',
+          'X-Title': 'BaranTrack'
         },
         body: JSON.stringify({
-          model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+          model: MODEL,
           messages: [{
             role: 'user',
             content: [
@@ -52,15 +57,14 @@ If you cannot identify food, return: {"items":[],"total":{"calories":0,"protein"
             ]
           }],
           temperature: 0.1,
-          max_tokens: 1024,
-          response_format: { type: 'json_object' }
+          max_tokens: 1024
         })
       }
     );
 
     const data = await resp.json();
     if (!resp.ok) {
-      const raw = data.error?.message || 'Groq API error';
+      const raw = data.error?.message || 'OpenRouter API error';
       const isQuota = resp.status === 429 || /quota|rate.?limit|RESOURCE_EXHAUSTED/i.test(raw);
       return {
         statusCode: resp.status || 500,
@@ -74,8 +78,10 @@ If you cannot identify food, return: {"items":[],"total":{"calories":0,"protein"
     }
 
     let text = data.choices?.[0]?.message?.content || '';
-    // Strip markdown code fences if the model wrapped the JSON
-    text = text.replace(/```json\n?/g,'').replace(/```\n?/g,'').trim();
+    // Models sometimes wrap JSON in ```code fences``` or add prose — strip and extract.
+    text = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const first = text.indexOf('{'), last = text.lastIndexOf('}');
+    if (first >= 0 && last > first) text = text.slice(first, last + 1);
 
     let result;
     try { result = JSON.parse(text); }
