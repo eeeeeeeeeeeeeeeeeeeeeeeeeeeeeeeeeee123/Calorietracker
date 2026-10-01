@@ -1609,9 +1609,13 @@ function localSearch(query){
   // PRIMARY: plain substring match on name, no-space name, or category.
   // This keeps the full result set (no artificial cap) and no weird matches.
   const hits=FOODS.filter(f=>{
-    const n=normalize(f.n), ns=n.replace(/ /g,''), cat=foodCategory(f.n);
-    return toks.every(t=>n.includes(t)||ns.includes(t)) ||
-           [...terms].some(t=>cat.includes(t));
+    const n=normalize(f.n), ns=n.replace(/ /g,''), cat=foodCategory(f.n).split(' ');
+    // Name match: every typed word appears in the name (or no-space name).
+    if(toks.every(t=>n.includes(t)||ns.includes(t))) return true;
+    // Category match: only when a WHOLE query word equals a category word
+    // ("fruit", "groente", "drinken") — a substring would wrongly pull in e.g.
+    // all fruit for "ui" because "ui" sits inside "frUIt".
+    return [...terms].some(t=>cat.includes(t));
   });
   const ql=nq;
   hits.sort((a,b)=>(foodRelevance(b.n,ql,toks)+popBoost(b.n)*100)-(foodRelevance(a.n,ql,toks)+popBoost(a.n)*100));
