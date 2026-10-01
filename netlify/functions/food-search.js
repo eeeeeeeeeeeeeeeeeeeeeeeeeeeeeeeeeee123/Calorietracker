@@ -24,7 +24,7 @@ async function translateChunk(chunk, lang) {
   const joined = chunk.join('\n');
   const url = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl='
     + encodeURIComponent(lang) + '&dt=t&q=' + encodeURIComponent(joined);
-  const r = await fetch(url);
+  const r = await fetch(url, { signal: AbortSignal.timeout(5000) });
   if (!r.ok) throw new Error('translate http ' + r.status);
   const j = await r.json();
   const out = (j[0] || []).map(s => s && s[0]).filter(s => s != null).join('');
@@ -51,9 +51,11 @@ async function translateAll(names, lang) {
     if (_trCache[k] !== undefined) map[n] = _trCache[k]; else todo.push(n);
   }
   const CHUNK = 20;
+  const jobs = [];
   for (let i = 0; i < todo.length; i += CHUNK) {
-    await translateGroup(todo.slice(i, i + CHUNK), lang, map);
+    jobs.push(translateGroup(todo.slice(i, i + CHUNK), lang, map));
   }
+  await Promise.all(jobs);
   return map;
 }
 
@@ -69,9 +71,9 @@ exports.handler = async function(event) {
   const STOP = new Set(['met','de','het','een','en','van','voor','op','of','the','with','and','a','an','for']);
   async function fetchOff(q) {
     const url = `https://search.openfoodfacts.org/search`
-      + `?q=${encodeURIComponent(q)}&langs=${lang}&page_size=40&page=${page}`
+      + `?q=${encodeURIComponent(q)}&langs=${lang}&page_size=25&page=${page}`
       + `&fields=product_name,brands,quantity,nutriments,countries_tags`;
-    const r = await fetch(url, { headers: { 'User-Agent': 'CalorieTracker/1.0 (contact@example.com)' } });
+    const r = await fetch(url, { headers: { 'User-Agent': 'CalorieTracker/1.0 (contact@example.com)' }, signal: AbortSignal.timeout(6000) });
     if (!r.ok) throw new Error(`OFF returned ${r.status}`);
     const d = await r.json();
     return d.hits || d.products || [];
@@ -91,7 +93,7 @@ exports.handler = async function(event) {
     const KEY = process.env.USDA_API_KEY || 'DEMO_KEY';
     const url = 'https://api.nal.usda.gov/fdc/v1/foods/search?api_key=' + encodeURIComponent(KEY)
       + '&pageSize=8&query=' + encodeURIComponent(q);
-    const r = await fetch(url);
+    const r = await fetch(url, { signal: AbortSignal.timeout(6000) });
     if (!r.ok) throw new Error('USDA ' + r.status);
     const d = await r.json();
     const out = [];
@@ -120,7 +122,12 @@ exports.handler = async function(event) {
   }
 
   try {
-    let rawProducts = await fetchOff(query);
+    // Fire OFF and USDA at the same time instead of one-after-the-other.
+    const [offMain, usdaItems] = await Promise.all([
+      fetchOff(query).catch(() => []),
+      fetchUsda(query).catch(() => [])
+    ]);
+    let rawProducts = offMain;
 
     // If the user added a brand (e.g. "kippenvleugels albert heijn") that OFF
     // doesn't stock, results collapse to brand-only matches and the actual
@@ -173,12 +180,12 @@ exports.handler = async function(event) {
       })
       .filter(m => m.base); // drop entries whose name was junk
 
-    // Complement with USDA (restaurant/fast-food items OFF lacks). Never fatal.
-    try {
-      const usda = await fetchUsda(query);
+    // Complement with USDA (restaurant/fast-food items OFF lacks) — already
+    // fetched in parallel above. Never fatal.
+    {
       const have = new Set(mapped.map(m => (m.base || '').toLowerCase()));
-      for (const u of usda) { if (!have.has(u.base.toLowerCase())) { have.add(u.base.toLowerCase()); mapped.push(u); } }
-    } catch (e) {}
+      for (const u of (usdaItems || [])) { if (!have.has(u.base.toLowerCase())) { have.add(u.base.toLowerCase()); mapped.push(u); } }
+    }
 
     // Translate the base names to the active language.
     const transMap = await translateAll(mapped.map(m => m.base), lang);

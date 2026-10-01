@@ -1663,7 +1663,9 @@ function searchFood(q){
     document.getElementById('foodSearchResults').appendChild(loadingEl);
 
     try{
-      const resp=await fetch(`/.netlify/functions/food-search?q=${encodeURIComponent(q)}&lang=${S.lang||'nl'}`);
+      // Give up after 12s so the "Open Food Facts zoeken..." indicator never hangs
+      // forever — the local results stay shown.
+      const resp=await fetch(`/.netlify/functions/food-search?q=${encodeURIComponent(q)}&lang=${S.lang||'nl'}`,{signal:AbortSignal.timeout(12000)});
       const data=await resp.json();
       let api=(data.products||[]);
       // Prefer results that actually contain a search word, but NEVER drop everything.
