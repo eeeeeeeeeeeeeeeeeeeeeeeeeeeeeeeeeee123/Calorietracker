@@ -1,9 +1,10 @@
 // Netlify Function: AI food-photo analysis.
-// Provider-flexible: it uses whichever FREE key you set in Netlify —
-//   GROQ_API_KEY         (console.groq.com, free)
-//   OPENROUTER_API_KEY   (openrouter.ai, free :free models)
-//   GEMINI_API_KEY       (aistudio.google.com, free)
-// Set just ONE of them. No code changes needed to switch providers.
+// Provider-flexible — uses whichever FREE key(s) you set in Netlify:
+//   CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN  (dash.cloudflare.com — free, no card, EU)
+//   GROQ_API_KEY         (console.groq.com)
+//   OPENROUTER_API_KEY   (openrouter.ai)
+//   GEMINI_API_KEY       (aistudio.google.com)
+// First one found wins. No code changes needed to switch.
 exports.handler = async function(event) {
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method not allowed' };
 
@@ -26,41 +27,48 @@ Respond ONLY with valid JSON in this exact format, no other text:
 If you cannot identify food, return: {"items":[],"total":{"calories":0,"protein":0,"carbs":0,"fat":0}}`;
 
   const dataUrl = `data:${mimeType};base64,${imageBase64}`;
+  const env = process.env;
 
-  // Pick the provider based on whichever key is present.
   let url, headers, payload, extract, provider;
-  if (process.env.GROQ_API_KEY) {
+  if (env.CLOUDFLARE_ACCOUNT_ID && env.CLOUDFLARE_API_TOKEN) {
+    provider = 'Cloudflare';
+    const model = env.CF_MODEL || '@cf/meta/llama-3.2-11b-vision-instruct';
+    url = `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/ai/run/${model}`;
+    headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${env.CLOUDFLARE_API_TOKEN}` };
+    payload = { messages: [{ role: 'user', content: prompt }], image: Array.from(Buffer.from(imageBase64, 'base64')), max_tokens: 1024, temperature: 0.2 };
+    extract = d => (d && d.result && (d.result.response || d.result.description)) || '';
+  } else if (env.GROQ_API_KEY) {
     provider = 'Groq';
     url = 'https://api.groq.com/openai/v1/chat/completions';
-    headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` };
-    payload = { model: process.env.GROQ_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct', messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: dataUrl } }] }], temperature: 0.1, max_tokens: 1024 };
+    headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${env.GROQ_API_KEY}` };
+    payload = { model: env.GROQ_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct', messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: dataUrl } }] }], temperature: 0.1, max_tokens: 1024 };
     extract = d => d.choices?.[0]?.message?.content;
-  } else if (process.env.OPENROUTER_API_KEY) {
+  } else if (env.OPENROUTER_API_KEY) {
     provider = 'OpenRouter';
     url = 'https://openrouter.ai/api/v1/chat/completions';
-    headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`, 'HTTP-Referer': 'https://barantrack.netlify.app', 'X-Title': 'BaranTrack' };
-    payload = { model: process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.2-11b-vision-instruct:free', messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: dataUrl } }] }], temperature: 0.1, max_tokens: 1024 };
+    headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${env.OPENROUTER_API_KEY}`, 'HTTP-Referer': 'https://barantrack.netlify.app', 'X-Title': 'BaranTrack' };
+    payload = { model: env.OPENROUTER_MODEL || 'meta-llama/llama-3.2-11b-vision-instruct:free', messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: dataUrl } }] }], temperature: 0.1, max_tokens: 1024 };
     extract = d => d.choices?.[0]?.message?.content;
-  } else if (process.env.GEMINI_API_KEY) {
+  } else if (env.GEMINI_API_KEY) {
     provider = 'Gemini';
-    url = `https://generativelanguage.googleapis.com/v1beta/models/${process.env.GEMINI_MODEL || 'gemini-2.0-flash'}:generateContent?key=${process.env.GEMINI_API_KEY}`;
+    url = `https://generativelanguage.googleapis.com/v1beta/models/${env.GEMINI_MODEL || 'gemini-2.0-flash'}:generateContent?key=${env.GEMINI_API_KEY}`;
     headers = { 'Content-Type': 'application/json' };
     payload = { contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: mimeType, data: imageBase64 } }] }], generationConfig: { temperature: 0.1, maxOutputTokens: 1024 } };
     extract = d => d.candidates?.[0]?.content?.parts?.[0]?.text;
   } else {
-    return { statusCode: 500, headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ error: 'Geen AI-sleutel ingesteld. Zet GROQ_API_KEY, OPENROUTER_API_KEY of GEMINI_API_KEY in je Netlify-variabelen.' }) };
+    return { statusCode: 500, headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ error: 'Geen AI-sleutel ingesteld. Zet CLOUDFLARE_ACCOUNT_ID+CLOUDFLARE_API_TOKEN, GROQ_API_KEY, OPENROUTER_API_KEY of GEMINI_API_KEY in je Netlify-variabelen.' }) };
   }
 
   try {
-    const resp = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload), signal: AbortSignal.timeout(30000) });
+    const resp = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload), signal: AbortSignal.timeout(45000) });
     const data = await resp.json();
-    if (!resp.ok) {
-      const raw = data.error?.message || (provider + ' API error');
+    if (!resp.ok || data.success === false) {
+      const raw = data.error?.message || data.errors?.[0]?.message || (provider + ' API error');
       const isQuota = resp.status === 429 || /quota|rate.?limit|RESOURCE_EXHAUSTED/i.test(raw);
       return {
         statusCode: resp.status || 500,
         headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: isQuota ? 'De AI-fotoanalyse heeft zijn limiet bereikt. Probeer het later opnieuw of voer het eten handmatig in.' : raw })
+        body: JSON.stringify({ error: isQuota ? 'De AI-fotoanalyse heeft zijn limiet bereikt. Probeer het later opnieuw of voer het eten handmatig in.' : (provider + ': ' + raw) })
       };
     }
 

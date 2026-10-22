@@ -511,6 +511,7 @@ body{font-family:'Poppins',sans-serif;background:var(--gray-50);color:var(--gray
         <div class="profile-stat"><div class="profile-stat-val" id="heroBMI">—</div><div class="profile-stat-lbl">BMI</div></div>
         <div class="profile-stat" onclick="editDailyGoal()" style="cursor:pointer" title="Aanpassen"><div class="profile-stat-val" id="heroCals">—</div><div class="profile-stat-lbl" data-nl="Dagdoel kcal ✏️" data-en="Daily goal kcal ✏️">Dagdoel kcal ✏️</div></div>
       </div>
+      <div id="profileIncompleteHint" onclick="openEditProfile()" style="display:none;cursor:pointer;margin-top:16px;background:rgba(255,255,255,.22);border-radius:12px;padding:12px 16px;font-size:14px;font-weight:600">⚠️ <span data-nl="Je profiel is nog niet compleet — tik hier om lengte, doelgewicht en activiteit in te vullen (dan verschijnen BMI & dagdoel)." data-en="Your profile is incomplete — tap here to add height, target weight and activity (then BMI & daily goal appear).">Je profiel is nog niet compleet — tik hier om lengte, doelgewicht en activiteit in te vullen (dan verschijnen BMI & dagdoel).</span></div>
     </div>
     <div class="cards-row">
       <div class="card">
@@ -1335,6 +1336,10 @@ function updateProfileUI(){
   document.getElementById('heroGoalW').textContent=u.goalWeight?u.goalWeight+' kg':'—';
   if(u.weight&&u.height){const bmi=(u.weight/Math.pow(u.height/100,2)).toFixed(1);document.getElementById('heroBMI').textContent=bmi;}
   document.getElementById('heroCals').textContent=u.tdee?u.tdee+' kcal':'—';
+  // Nudge the user to complete their profile when key fields are missing.
+  const incomplete=!(u.height>0)||!(u.goalWeight>0)||!(u.tdee>0);
+  const hintEl=document.getElementById('profileIncompleteHint');
+  if(hintEl) hintEl.style.display=incomplete?'block':'none';
   if(u.weight&&u.goalWeight){
     document.getElementById('startWeightLbl').textContent=u.weight+' kg';
     document.getElementById('goalWeightLbl').textContent=u.goalWeight+' kg';
@@ -1646,6 +1651,7 @@ function renderSections(sections){
   el.innerHTML = flat.length ? html : '<div class="empty-state"><div class="empty-icon">🔍</div>'+(S.lang==='nl'?'Geen resultaten gevonden':'No results found')+'</div>';
 }
 
+const _offCache=new Map(); // per-session cache of OFF/USDA responses -> instant repeats
 function searchFood(q){
   clearTimeout(searchT);
   if(q.length<1){renderStartView();return;}
@@ -1660,17 +1666,8 @@ function searchFood(q){
     const local=localSearch(q);
     window._searchResults=local;
     renderFoodResults(local);
-    const loadingEl=document.createElement('div');
-    loadingEl.id='offLoading';
-    loadingEl.style='padding:8px 16px;font-size:12px;color:var(--gray-400);font-style:italic';
-    loadingEl.textContent=S.lang==='nl'?'🔍 Open Food Facts zoeken...':'🔍 Searching Open Food Facts...';
-    document.getElementById('foodSearchResults').appendChild(loadingEl);
 
-    try{
-      // Give up after 12s so the "Open Food Facts zoeken..." indicator never hangs
-      // forever — the local results stay shown.
-      const resp=await fetch(`/.netlify/functions/food-search?q=${encodeURIComponent(q)}&lang=${S.lang||'nl'}`,{signal:AbortSignal.timeout(12000)});
-      const data=await resp.json();
+    const combineAndRender=(data)=>{
       let api=(data.products||[]);
       // Prefer results that actually contain a search word, but NEVER drop everything.
       const strong=api.filter(a=>{const n=normalize(baseName(a.n)); return tokens.some(t=>n.includes(t));});
@@ -1680,6 +1677,25 @@ function searchFood(q){
         .sort((a,b)=>foodRelevance(baseName(b.n),ql,tokens)-foodRelevance(baseName(a.n),ql,tokens))];
       window._searchResults=combined;
       renderFoodResults(combined);
+    };
+
+    // Cached? -> instant, no spinner, no network.
+    const cacheKey=ql+'|'+(S.lang||'nl');
+    if(_offCache.has(cacheKey)){ combineAndRender(_offCache.get(cacheKey)); return; }
+
+    const loadingEl=document.createElement('div');
+    loadingEl.id='offLoading';
+    loadingEl.style='padding:8px 16px;font-size:12px;color:var(--gray-400);font-style:italic';
+    loadingEl.textContent=S.lang==='nl'?'🔍 Open Food Facts zoeken...':'🔍 Searching Open Food Facts...';
+    document.getElementById('foodSearchResults').appendChild(loadingEl);
+
+    try{
+      // Give up after 12s so the spinner never hangs forever (local stays shown).
+      const resp=await fetch(`/.netlify/functions/food-search?q=${encodeURIComponent(q)}&lang=${S.lang||'nl'}`,{signal:AbortSignal.timeout(12000)});
+      const data=await resp.json();
+      _offCache.set(cacheKey,data);
+      if(_offCache.size>60) _offCache.delete(_offCache.keys().next().value);
+      combineAndRender(data);
     }catch(e){document.getElementById('offLoading')?.remove();}
   },300);
 }
